@@ -59,7 +59,7 @@ const tiers = [
 export default function Pricing() {
   return (
     <Container
-      id="pricing"
+      id="hiring"
       sx={{
         pt: { xs: 4, sm: 12 },
         pb: { xs: 8, sm: 16 },
@@ -82,7 +82,7 @@ export default function Pricing() {
           gutterBottom
           sx={{ color: 'text.primary' }}
         >
-          Pricing
+          WE ARE HIRING!
         </Typography>
         <Typography variant="body1" sx={{ color: 'text.secondary' }}>
           Quickly build an effective pricing table for your potential customers with

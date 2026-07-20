@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from 'react';
 import { styled, alpha } from '@mui/material/styles';
 import Box from '@mui/material/Box';
@@ -36,6 +38,15 @@ export default function AppAppBar() {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
 
+  const navItems = [
+    { label: 'Home', href: '/landing-page#home' },
+    { label: 'Reservation', href: '/landing-page#reservation' },
+    { label: 'Services', href: '/landing-page#services' },
+    { label: 'Job Offering', href: '/landing-page#job-offering' },
+    { label: 'Hiring', href: '/landing-page#hiring' },
+    { label: 'About Us', href: '/landing-page#about-us' },
+  ];
+
   const toggleDrawer = (newOpen: boolean) => () => {
     setOpen(newOpen);
   };
@@ -44,6 +55,9 @@ export default function AppAppBar() {
     router.push('/login');
   };
 
+  const handleSignUp = () => {
+    router.push('/sign-up');
+  };
   return (
     <AppBar
       position="fixed"
@@ -61,30 +75,24 @@ export default function AppAppBar() {
             <Image
                      src="/logo_2.png"
                      alt="ParkHR logo"
-                     width={180}
-                     height={60}
+                     width={100}
+                     height={40}
                      style={{ width: 'auto', height: 'auto' }}
                      priority
                    />
             <Box sx={{ display: { xs: 'none', md: 'flex' } }}>
-              <Button variant="text" color="info" size="small">
-                Features
-              </Button>
-              <Button variant="text" color="info" size="small">
-                Testimonials
-              </Button>
-              <Button variant="text" color="info" size="small">
-                Highlights
-              </Button>
-              <Button variant="text" color="info" size="small">
-                Pricing
-              </Button>
-              <Button variant="text" color="info" size="small" sx={{ minWidth: 0 }}>
-                FAQ
-              </Button>
-              <Button variant="text" color="info" size="small" sx={{ minWidth: 0 }}>
-                Blog
-              </Button>
+              {navItems.map((item) => (
+                <Button
+                  key={item.label}
+                  variant="text"
+                  color="info"
+                  size="small"
+                  href={item.href}
+                  sx={{ textTransform: 'none' }}
+                >
+                  {item.label}
+                </Button>
+              ))}
             </Box>
           </Box>
           <Box
@@ -97,7 +105,7 @@ export default function AppAppBar() {
             <Button color="primary" variant="text" size="small" onClick={handleLogin}>
               Sign in
             </Button>
-            <Button color="primary" variant="contained" size="small">
+            <Button color="primary" variant="contained" size="small" onClick={handleSignUp} >
               Sign up
             </Button>
             <ColorModeIconDropdown />
@@ -131,15 +139,19 @@ export default function AppAppBar() {
                   </IconButton>
                 </Box>
 
-                <MenuItem>Features</MenuItem>
-                <MenuItem>Testimonials</MenuItem>
-                <MenuItem>Highlights</MenuItem>
-                <MenuItem>Pricing</MenuItem>
-                <MenuItem>FAQ</MenuItem>
-                <MenuItem>Blog</MenuItem>
+                {navItems.map((item) => (
+                  <MenuItem
+                    key={item.label}
+                    component="a"
+                    href={item.href}
+                    onClick={toggleDrawer(false)}
+                  >
+                    {item.label}
+                  </MenuItem>
+                ))}
                 <Divider sx={{ my: 3 }} />
                 <MenuItem>
-                  <Button color="primary" variant="contained" fullWidth>
+                  <Button color="primary" variant="contained" fullWidth onClick={handleSignUp}>
                     Sign up
                   </Button>
                 </MenuItem>

@@ -1,3 +1,6 @@
+"use client";
+
+import * as React from 'react';
 import Card from '@mui/material/Card';
 import CardHeader from '@mui/material/CardHeader';
 import CardContent from '@mui/material/CardContent';
@@ -10,42 +13,42 @@ import { useColorScheme } from '@mui/material/styles';
 
 const userTestimonials = [
   {
-    avatar: <Avatar alt="Remy Sharp" src="/static/images/avatar/1.jpg" />,
+    avatar: <Avatar alt="Remy Sharp" src="/logo_1.png" />,
     name: 'Remy Sharp',
     occupation: 'Senior Engineer',
     testimonial:
       "I absolutely love how versatile this product is! Whether I'm tackling work projects or indulging in my favorite hobbies, it seamlessly adapts to my changing needs. Its intuitive design has truly enhanced my daily routine, making tasks more efficient and enjoyable.",
   },
   {
-    avatar: <Avatar alt="Travis Howard" src="/static/images/avatar/2.jpg" />,
+    avatar: <Avatar alt="Travis Howard" src="/logo_1.png" />,
     name: 'Travis Howard',
     occupation: 'Lead Product Designer',
     testimonial:
       "One of the standout features of this product is the exceptional customer support. In my experience, the team behind this product has been quick to respond and incredibly helpful. It's reassuring to know that they stand firmly behind their product.",
   },
   {
-    avatar: <Avatar alt="Cindy Baker" src="/static/images/avatar/3.jpg" />,
+    avatar: <Avatar alt="Cindy Baker" src="/logo_1.png" />,
     name: 'Cindy Baker',
     occupation: 'CTO',
     testimonial:
       'The level of simplicity and user-friendliness in this product has significantly simplified my life. I appreciate the creators for delivering a solution that not only meets but exceeds user expectations.',
   },
   {
-    avatar: <Avatar alt="Remy Sharp" src="/static/images/avatar/4.jpg" />,
+    avatar: <Avatar alt="Remy Sharp" src="/logo_1.png" />,
     name: 'Julia Stewart',
     occupation: 'Senior Engineer',
     testimonial:
       "I appreciate the attention to detail in the design of this product. The small touches make a big difference, and it's evident that the creators focused on delivering a premium experience.",
   },
   {
-    avatar: <Avatar alt="Travis Howard" src="/static/images/avatar/5.jpg" />,
+    avatar: <Avatar alt="Travis Howard" src="/logo_1.png" />,
     name: 'John Smith',
     occupation: 'Product Designer',
     testimonial:
       "I've tried other similar products, but this one stands out for its innovative features. It's clear that the makers put a lot of thought into creating a solution that truly addresses user needs.",
   },
   {
-    avatar: <Avatar alt="Cindy Baker" src="/static/images/avatar/6.jpg" />,
+    avatar: <Avatar alt="Cindy Baker" src="/logo_1.png" />,
     name: 'Daniel Wolf',
     occupation: 'CDO',
     testimonial:
@@ -78,18 +81,21 @@ const logoStyle = {
 
 export default function Testimonials() {
   const { mode, systemMode } = useColorScheme();
+  const [mounted, setMounted] = React.useState(false);
 
-  let logos;
-  if (mode === 'system') {
-    if (systemMode === 'light') {
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  let logos = lightModeLogos;
+  if (mounted) {
+    if (mode === 'system') {
+      logos = systemMode === 'light' ? lightModeLogos : darkModeLogos;
+    } else if (mode === 'light') {
       logos = lightModeLogos;
     } else {
       logos = darkModeLogos;
     }
-  } else if (mode === 'light') {
-    logos = lightModeLogos;
-  } else {
-    logos = darkModeLogos;
   }
 
   return (

@@ -1,3 +1,6 @@
+
+"use client";
+
 import * as React from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -8,11 +11,14 @@ import FormLabel from '@mui/material/FormLabel';
 import FormControl from '@mui/material/FormControl';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Link from '@mui/material/Link';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { styled } from '@mui/material/styles';
 import ForgotPassword from './ForgotPassword';
 import { GoogleIcon, FacebookIcon, SitemarkIcon } from './CustomIcons';
+import { useRouter } from 'next/navigation';
 
 const Card = styled(MuiCard)(({ theme }) => ({
   display: 'flex',
@@ -33,12 +39,20 @@ const Card = styled(MuiCard)(({ theme }) => ({
 }));
 
 export default function SignInCard() {
+  const router = useRouter();
   const [emailError, setEmailError] = React.useState(false);
   const [emailErrorMessage, setEmailErrorMessage] = React.useState('');
   const [passwordError, setPasswordError] = React.useState(false);
   const [passwordErrorMessage, setPasswordErrorMessage] = React.useState('');
   const [open, setOpen] = React.useState(false);
-
+  const [email, setEmail] = React.useState('');
+  const [password, setPassword] = React.useState('');
+  const [snackbarOpen, setSnackbarOpen] = React.useState(false);
+  const [snackbarMsg, setSnackbarMsg] = React.useState('');
+  const [snackbarPosition, setSnackbarPosition] = React.useState({
+    vertical: 'top',
+    horizontal: 'center',
+  });
   const handleClickOpen = () => {
     setOpen(true);
   };
@@ -47,27 +61,59 @@ export default function SignInCard() {
     setOpen(false);
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    if (emailError || passwordError) {
-      event.preventDefault();
-      return;
-    }
+  const handleSnackbarClose = () => {
+    setSnackbarOpen(false);
+  };
+
+  // handleLogin removed - form submit handled by handleSubmit
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    // run validation
+    const ok = validateInputs();
+    if (!ok) return;
+
     const data = new FormData(event.currentTarget);
-    console.log({
-      email: data.get('email'),
-      password: data.get('password'),
-    });
+    const identifier = String(data.get('identifier') || '');
+    const password = String(data.get('password') || '');
+
+    const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL.replace(/\/$/, '')) || 'http://localhost:5000';
+
+    try {
+      const res = await fetch(`${API_BASE}/users/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, password }),
+      });
+      const contentType = res.headers.get('content-type') || '';
+      let body: any = null;
+      if (contentType.includes('application/json')) body = await res.json();
+      else body = await res.text();
+
+      if (!res.ok) {
+        alert('Login failed: ' + (body?.error || body || res.statusText));
+        return;
+      }
+
+      setSnackbarMsg('Login successful');
+      setSnackbarOpen(true);
+      router.push('/dashboard');
+      console.log('User:', body?.user || body);
+    } catch (err) {
+      console.error(err);
+      alert('Login error: ' + String(err));
+    }
   };
 
   const validateInputs = () => {
-    const email = document.getElementById('email') as HTMLInputElement;
+    const identifier = document.getElementById('identifier') as HTMLInputElement;
     const password = document.getElementById('password') as HTMLInputElement;
 
     let isValid = true;
 
-    if (!email.value || !/\S+@\S+\.\S+/.test(email.value)) {
+    if (!identifier.value) {
       setEmailError(true);
-      setEmailErrorMessage('Please enter a valid email address.');
+      setEmailErrorMessage('Please enter your email or username.');
       isValid = false;
     } else {
       setEmailError(false);
@@ -105,21 +151,21 @@ export default function SignInCard() {
         sx={{ display: 'flex', flexDirection: 'column', width: '100%', gap: 2 }}
       >
         <FormControl>
-          <FormLabel htmlFor="email">Email</FormLabel>
-          <TextField
-            error={emailError}
-            helperText={emailErrorMessage}
-            id="email"
-            type="email"
-            name="email"
-            placeholder="your@email.com"
-            autoComplete="email"
-            autoFocus
-            required
-            fullWidth
-            variant="outlined"
-            color={emailError ? 'error' : 'primary'}
-          />
+            <FormLabel htmlFor="identifier">Email or Username</FormLabel>
+            <TextField
+              error={emailError}
+              helperText={emailErrorMessage}
+              id="identifier"
+              name="identifier"
+              placeholder="email or username"
+              autoComplete="username"
+              autoFocus
+              required
+              fullWidth
+              onChange={(e) => setEmail(e.target.value)}  
+              variant="outlined"
+              color={emailError ? 'error' : 'primary'}
+            />
         </FormControl>
         <FormControl>
           <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -145,6 +191,7 @@ export default function SignInCard() {
             autoFocus
             required
             fullWidth
+            onChange={(e) => setPassword(e.target.value)}
             variant="outlined"
             color={passwordError ? 'error' : 'primary'}
           />
@@ -154,7 +201,7 @@ export default function SignInCard() {
           label="Remember me"
         />
         <ForgotPassword open={open} handleClose={handleClose} />
-        <Button type="submit" fullWidth variant="contained" onClick={validateInputs}>
+        <Button type="submit" fullWidth variant="contained">
           Sign in
         </Button>
         <Typography sx={{ textAlign: 'center' }}>
@@ -169,6 +216,20 @@ export default function SignInCard() {
             </Link>
           </span>
         </Typography>
+        <Snackbar
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+          open={snackbarOpen}
+          onClose={handleSnackbarClose}
+          key="bottomright"
+        >
+          <Alert
+            onClose={handleSnackbarClose}
+            severity="success"
+            sx={{ width: '100%', color: 'green', bgcolor: 'transparent', boxShadow: 'none' }}
+          >
+            {snackbarMsg}
+          </Alert>
+        </Snackbar>
       </Box>
       {/* <Divider>or</Divider> */}
       {/* <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
