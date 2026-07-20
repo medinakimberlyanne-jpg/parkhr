@@ -32,6 +32,7 @@ function Copyright() {
 export default function Footer() {
   return (
     <Container
+      id="about-us"
       sx={{
         display: 'flex',
         flexDirection: 'column',

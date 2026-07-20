@@ -1,3 +1,6 @@
+"use client";
+
+import * as React from 'react';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Grid from '@mui/material/Grid';
@@ -30,29 +33,26 @@ const logoStyle = {
 
 export default function LogoCollection() {
   const { mode, systemMode } = useColorScheme();
-  let logos;
-  if (mode === 'system') {
-    if (systemMode === 'light') {
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  let logos = lightModeLogos;
+  if (mounted) {
+    if (mode === 'system') {
+      logos = systemMode === 'light' ? lightModeLogos : darkModeLogos;
+    } else if (mode === 'light') {
       logos = lightModeLogos;
     } else {
       logos = darkModeLogos;
     }
-  } else if (mode === 'light') {
-    logos = lightModeLogos;
-  } else {
-    logos = darkModeLogos;
   }
 
   return (
-    <Box id="logoCollection" sx={{ py: 4 }}>
-      <Typography
-        component="p"
-        variant="subtitle2"
-        align="center"
-        sx={{ color: 'text.secondary' }}
-      >
-        Trusted by the best companies
-      </Typography>
+    <Box id="reservation" sx={{ py: 4 }}>
+      
       <Grid container sx={{ justifyContent: 'center', mt: 0.5, opacity: 0.6 }}>
         {logos.map((logo, index) => (
           <Grid key={index}>

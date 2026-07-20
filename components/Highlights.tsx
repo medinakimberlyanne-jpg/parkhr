@@ -14,46 +14,46 @@ import ThumbUpAltRoundedIcon from '@mui/icons-material/ThumbUpAltRounded';
 const items = [
   {
     icon: <SettingsSuggestRoundedIcon />,
-    title: 'Adaptable performance',
+    title: 'Adaptable Online Job Application',
     description:
-      'Our product effortlessly adjusts to your needs, boosting efficiency and simplifying your tasks.',
+      'Our product effortlessly Apply for available positions quickly and securely through our online application system. to your needs, boosting efficiency and simplifying your tasks.',
   },
   {
     icon: <ConstructionRoundedIcon />,
-    title: 'Built to last',
+    title: 'Built to Multiple Job Opportunities',
     description:
-      'Experience unmatched durability that goes above and beyond with lasting investment.',
+      'Experience unmatched Explore a variety of job openings, including parking attendants, cashiers, security personnel, and administrative roles. that goes above and beyond with lasting investment.',
   },
   {
     icon: <ThumbUpAltRoundedIcon />,
-    title: 'Great user experience',
+    title: 'Great user Application Tracking',
     description:
-      'Integrate our product into your routine with an intuitive and easy-to-use interface.',
+      'Integrate Stay informed by checking the status of your application throughout the recruitment process. product into your routine with an intuitive and easy-to-use interface.',
   },
   {
     icon: <AutoFixHighRoundedIcon />,
-    title: 'Innovative functionality',
+    title: 'Innovative Interview Scheduling',
     description:
-      'Stay ahead with features that set new standards, addressing your evolving needs better than the rest.',
+      'Stay ahead with features that set new Receive interview invitations and schedule your appointment with ease., addressing your evolving needs better than the rest.',
   },
   {
     icon: <SupportAgentRoundedIcon />,
-    title: 'Reliable support',
+    title: 'Profile & Resume Management support',
     description:
-      'Count on our responsive customer support, offering assistance that goes beyond the purchase.',
+      'Count on our Update your personal information and upload your resume whenever needed. customer support, offering assistance that goes beyond the purchase.',
   },
   {
     icon: <QueryStatsRoundedIcon />,
-    title: 'Precision in every detail',
+    title: 'Fair Hiring Process in every detail',
     description:
-      'Enjoy a meticulously crafted product where small touches make a significant impact on your overall experience.',
+      'We value transparency, equal opportunity, and a smooth recruitment experience for every applicant. a meticulously crafted product where small touches make a significant impact on your overall experience.',
   },
 ];
 
 export default function Highlights() {
   return (
     <Box
-      id="highlights"
+      id="job-offering"
       sx={{
         pt: { xs: 4, sm: 12 },
         pb: { xs: 8, sm: 16 },
@@ -77,12 +77,10 @@ export default function Highlights() {
           }}
         >
           <Typography component="h2" variant="h4" gutterBottom>
-            Highlights
+            Job Offering
           </Typography>
           <Typography variant="body1" sx={{ color: 'grey.400' }}>
-            Explore why our product stands out: adaptability, durability,
-            user-friendly design, and innovation. Enjoy reliable customer support and
-            precision in every detail.
+           Explore exciting career opportunities and become part of our growing team. Browse available positions, submit your application online, and help us deliver reliable parking services.
           </Typography>
         </Box>
         <Grid container spacing={2}>

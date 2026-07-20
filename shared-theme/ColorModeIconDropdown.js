@@ -1,35 +1,27 @@
-"use client";
-
 import * as React from 'react';
 import DarkModeIcon from '@mui/icons-material/DarkModeRounded';
 import LightModeIcon from '@mui/icons-material/LightModeRounded';
 import Box from '@mui/material/Box';
-import IconButton, { IconButtonOwnProps } from '@mui/material/IconButton';
+import IconButton from '@mui/material/IconButton';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import { useColorScheme } from '@mui/material/styles';
 
-export default function ColorModeIconDropdown(props: IconButtonOwnProps) {
+export default function ColorModeIconDropdown(props) {
   const { mode, systemMode, setMode } = useColorScheme();
-  const [mounted, setMounted] = React.useState(false);
-  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const [anchorEl, setAnchorEl] = React.useState(null);
   const open = Boolean(anchorEl);
-
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  const handleClick = (event: React.MouseEvent<HTMLElement>) => {
+  const handleClick = (event) => {
     setAnchorEl(event.currentTarget);
   };
   const handleClose = () => {
     setAnchorEl(null);
   };
-  const handleMode = (targetMode: 'system' | 'light' | 'dark') => () => {
+  const handleMode = (targetMode) => () => {
     setMode(targetMode);
     handleClose();
   };
-  if (!mounted) {
+  if (!mode) {
     return (
       <Box
         data-screenshot="toggle-mode"
@@ -45,7 +37,7 @@ export default function ColorModeIconDropdown(props: IconButtonOwnProps) {
       />
     );
   }
-  const resolvedMode = (systemMode || mode) as 'light' | 'dark';
+  const resolvedMode = systemMode || mode;
   const icon = {
     light: <LightModeIcon />,
     dark: <DarkModeIcon />,

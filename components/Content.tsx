@@ -10,15 +10,10 @@ import Image from 'next/image';
 import { SitemarkIcon } from './CustomIcons';
 
 const items = [
-  {
-    icon: <SettingsSuggestRoundedIcon sx={{ color: 'text.secondary' }} />,
-    title: 'Adaptable performance',
-    description:
-      'Our product effortlessly adjusts to your needs, boosting efficiency and simplifying your tasks.',
-  },
+
   {
     icon: <ConstructionRoundedIcon sx={{ color: 'text.secondary' }} />,
-    title: 'Built to last',
+    title: 'WELCOME TO PARKING LOT RESERVATION SYSTEM',
     description:
       'Experience unmatched durability that goes above and beyond with lasting investment.',
   },
