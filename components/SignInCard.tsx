@@ -19,6 +19,8 @@ import { styled } from '@mui/material/styles';
 import ForgotPassword from './ForgotPassword';
 import { GoogleIcon, FacebookIcon, SitemarkIcon } from './CustomIcons';
 import { useRouter } from 'next/navigation';
+import { useAppDispatch } from '../store/store';
+import { setUser } from '../store/userSlice';
 
 const Card = styled(MuiCard)(({ theme }) => ({
   display: 'flex',
@@ -40,6 +42,7 @@ const Card = styled(MuiCard)(({ theme }) => ({
 
 export default function SignInCard() {
   const router = useRouter();
+  const dispatch = useAppDispatch();
   const [emailError, setEmailError] = React.useState(false);
   const [emailErrorMessage, setEmailErrorMessage] = React.useState('');
   const [passwordError, setPasswordError] = React.useState(false);
@@ -97,8 +100,23 @@ export default function SignInCard() {
 
       setSnackbarMsg('Login successful');
       setSnackbarOpen(true);
+      const user = body?.user || body;
+      const userId = user?._id || user?.id || user?._doc?._id;
+      try {
+        if (userId) {
+          document.cookie = `userId=${String(userId)}; Path=/; Max-Age=${60 * 60 * 24 * 30}`;
+        }
+      } catch (e) {
+        // ignore cookie errors in restrictive environments
+      }
+      // store user in redux
+      try {
+        dispatch(setUser(user));
+      } catch (e) {
+        console.warn('Failed to dispatch user to store', e);
+      }
       router.push('/dashboard');
-      console.log('User:', body?.user || body);
+      console.log('User:', user);
     } catch (err) {
       console.error(err);
       alert('Login error: ' + String(err));

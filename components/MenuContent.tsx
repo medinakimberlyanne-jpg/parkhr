@@ -1,3 +1,5 @@
+'use client';
+
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemButton from '@mui/material/ListItemButton';
@@ -12,10 +14,15 @@ import SettingsRoundedIcon from '@mui/icons-material/SettingsRounded';
 import InfoRoundedIcon from '@mui/icons-material/InfoRounded';
 import HelpRoundedIcon from '@mui/icons-material/HelpRounded';
 
+interface MenuContentProps {
+  selectedSection: string;
+  onSelectSection: (section: string) => void;
+}
+
 const mainListItems = [
   { text: 'Home', icon: <HomeRoundedIcon /> },
   { text: 'Reservation', icon: <AnalyticsRoundedIcon /> },
-  { text: 'Parking Spaces', icon: <PeopleRoundedIcon /> },
+
   { text: 'History', icon: <AssignmentRoundedIcon /> },
   { text: 'Payment', icon: <AssignmentRoundedIcon /> },
 ];
@@ -26,13 +33,16 @@ const secondaryListItems = [
   { text: 'Feedback', icon: <HelpRoundedIcon /> },
 ];
 
-export default function MenuContent() {
+export default function MenuContent({ selectedSection, onSelectSection }: MenuContentProps) {
   return (
     <Stack sx={{ flexGrow: 1, p: 1, justifyContent: 'space-between' }}>
       <List dense>
-        {mainListItems.map((item, index) => (
-          <ListItem key={index} disablePadding sx={{ display: 'block' }}>
-            <ListItemButton selected={index === 0}>
+        {mainListItems.map((item) => (
+          <ListItem key={item.text} disablePadding sx={{ display: 'block' }}>
+            <ListItemButton
+              selected={selectedSection === item.text}
+              onClick={() => onSelectSection(item.text)}
+            >
               <ListItemIcon>{item.icon}</ListItemIcon>
               <ListItemText primary={item.text} />
             </ListItemButton>
@@ -40,9 +50,12 @@ export default function MenuContent() {
         ))}
       </List>
       <List dense>
-        {secondaryListItems.map((item, index) => (
-          <ListItem key={index} disablePadding sx={{ display: 'block' }}>
-            <ListItemButton>
+        {secondaryListItems.map((item) => (
+          <ListItem key={item.text} disablePadding sx={{ display: 'block' }}>
+            <ListItemButton
+              selected={selectedSection === item.text}
+              onClick={() => onSelectSection(item.text)}
+            >
               <ListItemIcon>{item.icon}</ListItemIcon>
               <ListItemText primary={item.text} />
             </ListItemButton>

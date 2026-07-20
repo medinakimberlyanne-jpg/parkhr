@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from 'react';
 import { styled } from '@mui/material/styles';
 import Divider, { dividerClasses } from '@mui/material/Divider';
@@ -10,6 +12,9 @@ import ListItemIcon, { listItemIconClasses } from '@mui/material/ListItemIcon';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import MenuButton from './MenuButton';
+import { useAppDispatch } from '../store/store';
+import { clearUser } from '../store/userSlice';
+import { useRouter } from 'next/navigation';
 
 const MenuItem = styled(MuiMenuItem)({
   margin: '2px 0',
@@ -18,11 +23,34 @@ const MenuItem = styled(MuiMenuItem)({
 export default function OptionsMenu() {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const open = Boolean(anchorEl);
+  const dispatch = useAppDispatch();
+  const router = useRouter();
   const handleClick = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
   };
   const handleClose = () => {
     setAnchorEl(null);
+  };
+
+  const handleLogout = () => {
+    // clear known cookie
+    try {
+      document.cookie = 'userId=; Path=/; Max-Age=0';
+      // also attempt to clear all cookies for this path
+      document.cookie.split(';').forEach((c) => {
+        const name = c.split('=')[0]?.trim();
+        if (name) document.cookie = `${name}=; Path=/; Max-Age=0`;
+      });
+    } catch (e) {
+      // ignore
+    }
+    try {
+      dispatch(clearUser());
+    } catch (e) {
+      // ignore
+    }
+    handleClose();
+    router.replace('/login');
   };
   return (
     <React.Fragment>
@@ -60,7 +88,7 @@ export default function OptionsMenu() {
         <MenuItem onClick={handleClose}>Settings</MenuItem>
         <Divider />
         <MenuItem
-          onClick={handleClose}
+          onClick={handleLogout}
           sx={{
             [`& .${listItemIconClasses.root}`]: {
               ml: 'auto',

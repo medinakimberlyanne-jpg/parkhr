@@ -10,7 +10,6 @@ import HighlightedCard from './HighlightedCard';
 import PageViewsBarChart from './PageViewsBarChart';
 import SessionsChart from './SessionsChart';
 import StatCard, { StatCardProps } from './StatCard';
-
 const data: StatCardProps[] = [
   {
     title: 'Users',

@@ -7,10 +7,14 @@ import { alpha } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
+import * as React from 'react';
+import { useRouter } from 'next/navigation';
+import { useAppSelector } from '../../store/store';
 import AppNavbar from '../../components/AppNavbar_2';
 import Header from '../../components/Header';
 import MainGrid from '../../components/MainGrid';
 import SideMenu from '../../components/SideMenu';
+import DashboardContent from '../../components/DashboardContent';
 import AppTheme from '../../theme/AppTheme';
 import {
   chartsCustomizations,
@@ -27,12 +31,30 @@ const xThemeComponents = {
 };
 
 export default function Dashboard(props: { disableCustomTheme?: boolean }) {
+  const [selectedSection, setSelectedSection] = React.useState('Home');
+  const router = useRouter();
+  const user = useAppSelector((s) => s.user.user);
+
+  const getCookie = (name: string) => {
+    if (typeof document === 'undefined') return null;
+    const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+    return match ? decodeURIComponent(match[2]) : null;
+  };
+
+  React.useEffect(() => {
+    // if user is not in redux store and no userId cookie, redirect to login
+    const id = getCookie('userId');
+    if (!user && !id) {
+      router.replace('/login');
+    }
+  }, [user, router]);
+
   return (
     <AppTheme {...props} themeComponents={xThemeComponents}>
       <CssBaseline enableColorScheme />
       <Box sx={{ display: 'flex' }}>
-        <SideMenu />
-        <AppNavbar />
+        <SideMenu selectedSection={selectedSection} onSelectSection={setSelectedSection} />
+        <AppNavbar selectedSection={selectedSection} onSelectSection={setSelectedSection} />
         {/* Main content */}
         <Box
           component="main"
@@ -47,14 +69,20 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
           <Stack
             spacing={2}
             sx={{
-              alignItems: 'center',
+              alignItems: 'stretch',
               mx: 3,
               pb: 5,
               mt: { xs: 8, md: 0 },
             }}
           >
             <Header />
-            <MainGrid />
+            <Box sx={{ width: '100%', maxWidth: 1700, mx: 'auto' }}>
+              {selectedSection === 'Home' ? (
+                <MainGrid />
+              ) : (
+                <DashboardContent section={selectedSection} />
+              )}
+            </Box>
           </Stack>
         </Box>
       </Box>
