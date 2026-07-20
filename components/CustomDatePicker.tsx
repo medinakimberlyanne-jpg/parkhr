@@ -18,7 +18,7 @@ interface ButtonFieldProps extends DatePickerFieldProps {}
 function ButtonField(props: ButtonFieldProps): JSX.Element {
   const split = useSplitFieldProps(props, 'date') as any;
   const forwardedProps = split?.forwardedProps ?? {};
-  const { inputRef, ...forwardedPropsRest } = forwardedProps as any;
+  const { inputRef, slotProps: _slotProps, ...forwardedPropsRest } = forwardedProps as any;
   const pickerContext = usePickerContext();
   const handleRef = useForkRef(pickerContext.triggerRef, pickerContext.rootRef);
   const parsedFormat = useParsedFormat();

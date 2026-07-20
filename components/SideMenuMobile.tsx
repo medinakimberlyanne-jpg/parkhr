@@ -8,14 +8,16 @@ import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import NotificationsRoundedIcon from '@mui/icons-material/NotificationsRounded';
 import MenuButton from './MenuButton';
 import MenuContent from './MenuContent';
-import CardAlert from './CardAlert';
+
 
 interface SideMenuMobileProps {
   open: boolean | undefined;
   toggleDrawer: (newOpen: boolean) => () => void;
+  selectedSection: string;
+  onSelectSection: (section: string) => void;
 }
 
-export default function SideMenuMobile({ open, toggleDrawer }: SideMenuMobileProps) {
+export default function SideMenuMobile({ open, toggleDrawer, selectedSection, onSelectSection }: SideMenuMobileProps) {
   return (
     <Drawer
       anchor="right"
@@ -56,10 +58,13 @@ export default function SideMenuMobile({ open, toggleDrawer }: SideMenuMobilePro
         </Stack>
         <Divider />
         <Stack sx={{ flexGrow: 1 }}>
-          <MenuContent />
+          <MenuContent selectedSection={selectedSection} onSelectSection={(section) => {
+            onSelectSection(section);
+            toggleDrawer(false)();
+          }} />
           <Divider />
         </Stack>
-        <CardAlert />
+      
         <Stack sx={{ p: 2 }}>
           <Button variant="outlined" fullWidth startIcon={<LogoutRoundedIcon />}>
             Logout

@@ -10,10 +10,14 @@ import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 
 export default function SignUpPage() {
   const [submitting, setSubmitting] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
+  const [snackbarOpen, setSnackbarOpen] = React.useState(false);
+  const [snackbarMsg, setSnackbarMsg] = React.useState('');
 
   async function fileToBase64(file: File): Promise<string> {
     return await new Promise((resolve, reject) => {
@@ -60,7 +64,14 @@ export default function SignUpPage() {
       }
 
       if (res.ok) setMessage('Sign-up saved (id: ' + (data.insertedId || '') + ')');
-      else setMessage('Error: ' + (data.error || res.statusText));
+      else {
+        const err = data.error || res.statusText;
+        setMessage('Error: ' + err);
+        if (res.status === 409) {
+          setSnackbarMsg('Email already in use');
+          setSnackbarOpen(true);
+        }
+      }
     } catch (err: any) {
       setMessage('Error: ' + (err?.message || String(err)));
     } finally {
@@ -103,6 +114,20 @@ export default function SignUpPage() {
 
           <Box component="form" noValidate onSubmit={handleSubmit}>
             <Stack spacing={2}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                <TextField
+                  fullWidth
+                  label="First name"
+                  name="firstName"
+                  autoComplete="given-name"
+                />
+                <TextField
+                  fullWidth
+                  label="Last name"
+                  name="lastName"
+                  autoComplete="family-name"
+                />
+              </Stack>
               <TextField
                 fullWidth
                 label="Username"
@@ -163,6 +188,9 @@ export default function SignUpPage() {
           </Box>
         </Paper>
       </Container>
+      <Snackbar open={snackbarOpen} autoHideDuration={4000} onClose={() => setSnackbarOpen(false)}>
+        <Alert severity="warning">{snackbarMsg}</Alert>
+      </Snackbar>
     </Box>
   );
 }

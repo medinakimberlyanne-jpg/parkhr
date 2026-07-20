@@ -28,7 +28,27 @@ async function startServer() {
         return res.status(400).json({ error: 'Empty payload' });
       }
 
+      // Normalize name fields: combine firstName + lastName into fullName and name
+      const firstName = payload.firstName || payload.givenName || null;
+      const lastName = payload.lastName || payload.familyName || null;
+      if (firstName || lastName) {
+        const full = [firstName, lastName].filter(Boolean).join(' ').trim();
+        if (full) {
+          payload.fullName = full;
+          // keep legacy `name` property for compatibility
+          payload.name = payload.name || full;
+        }
+      }
+
       const col = db.collection('users');
+      // reject duplicate email
+      if (payload.email) {
+        const existing = await col.findOne({ email: payload.email });
+        if (existing) {
+          return res.status(409).json({ error: 'Email already in use' });
+        }
+      }
+
       const insert = await col.insertOne({ ...payload, createdAt: new Date() });
       return res.json({ insertedId: insert.insertedId });
     } catch (err) {

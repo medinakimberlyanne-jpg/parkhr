@@ -1,3 +1,5 @@
+"use client";
+
 import { styled } from '@mui/material/styles';
 import Avatar from '@mui/material/Avatar';
 import MuiDrawer, { drawerClasses } from '@mui/material/Drawer';
@@ -7,8 +9,9 @@ import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import SelectContent from './SelectContent';
 import MenuContent from './MenuContent';
-import CardAlert from './CardAlert';
+
 import OptionsMenu from './OptionsMenu';
+import { useAppSelector } from '../store/store';
 
 const drawerWidth = 240;
 
@@ -23,7 +26,13 @@ const Drawer = styled(MuiDrawer)({
   },
 });
 
-export default function SideMenu() {
+interface SideMenuProps {
+  selectedSection: string;
+  onSelectSection: (section: string) => void;
+}
+
+export default function SideMenu({ selectedSection, onSelectSection }: SideMenuProps) {
+  const user = useAppSelector((s) => s.user.user);
   return (
     <Drawer
       variant="permanent"
@@ -52,10 +61,10 @@ export default function SideMenu() {
           flexDirection: 'column',
         }}
       >
-        <MenuContent />
-        <CardAlert />
+        <MenuContent selectedSection={selectedSection} onSelectSection={onSelectSection} />
+        
       </Box>
-      <Stack
+        <Stack
         direction="row"
         sx={{
           p: 2,
@@ -67,16 +76,16 @@ export default function SideMenu() {
       >
         <Avatar
           sizes="small"
-          alt="Riley Carter"
-          src="/logo_1.png"
+          alt={user?.name || user?.username || 'User'}
+          src={user?.avatar || user?.avatarUrl || '/logo_1.png'}
           sx={{ width: 36, height: 36 }}
         />
         <Box sx={{ mr: 'auto' }}>
           <Typography variant="body2" sx={{ fontWeight: 500, lineHeight: '16px' }}>
-            Riley Carter
+            {user?.name || user?.fullName || user?.username || 'Riley Carter'}
           </Typography>
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-            riley@email.com
+            {user?.email || 'you@company.com'}
           </Typography>
         </Box>
         <OptionsMenu />
