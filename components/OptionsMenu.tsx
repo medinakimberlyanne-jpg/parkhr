@@ -36,6 +36,7 @@ export default function OptionsMenu() {
     // clear known cookie
     try {
       document.cookie = 'userId=; Path=/; Max-Age=0';
+      window.localStorage.removeItem('parkhr.userId');
       // also attempt to clear all cookies for this path
       document.cookie.split(';').forEach((c) => {
         const name = c.split('=')[0]?.trim();

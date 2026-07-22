@@ -105,9 +105,20 @@ export default function SignInCard() {
       try {
         if (userId) {
           document.cookie = `userId=${String(userId)}; Path=/; Max-Age=${60 * 60 * 24 * 30}`;
+          window.localStorage.setItem('parkhr.userId', String(userId));
         }
+      	// Persist full user details to localStorage but strip any password fields
+      	try {
+      		const safeUser: any = { ...(user || {}) };
+      		delete safeUser.password;
+      		delete safeUser.passwd;
+      		delete safeUser.pwd;
+      		window.localStorage.setItem('parkhr.user', JSON.stringify(safeUser));
+      	} catch (e) {
+      		console.warn('Failed to persist user to localStorage', e);
+      	}
       } catch (e) {
-        // ignore cookie errors in restrictive environments
+        // ignore cookie/localStorage errors in restrictive environments
       }
       // store user in redux
       try {
@@ -226,7 +237,7 @@ export default function SignInCard() {
           Don&apos;t have an account?{' '}
           <span>
             <Link
-              href="/material-ui/getting-started/templates/sign-in/"
+              href="/sign-up"
               variant="body2"
               sx={{ alignSelf: 'center' }}
             >

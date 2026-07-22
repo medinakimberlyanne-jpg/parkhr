@@ -12,6 +12,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
+import Link from 'next/link';
 
 export default function SignUpPage() {
   const [submitting, setSubmitting] = React.useState(false);
@@ -184,7 +185,11 @@ export default function SignUpPage() {
               </Typography>
             )}
             <Typography variant="body2" align="center" color="text.secondary">
-              Already have an account? Log in instead.
+              Already have an account? <Link
+              href="/login"
+            >
+              Log in instead.
+            </Link>
             </Typography>
           </Box>
         </Paper>

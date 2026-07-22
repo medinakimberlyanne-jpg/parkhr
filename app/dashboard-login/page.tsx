@@ -70,6 +70,18 @@ export default function DashboardLoginPage(props: { disableCustomTheme?: boolean
 			const userType = String(user?.userType || '').toLowerCase();
 			if (userId) {
 				document.cookie = `userId=${String(userId)}; Path=/; Max-Age=${60 * 60 * 24 * 30}`;
+				window.localStorage.setItem('parkhr.userId', String(userId));
+			}
+
+			// Persist full user details to localStorage but strip any password fields
+			try {
+				const safeUser: any = { ...(user || {}) };
+				delete safeUser.password;
+				delete safeUser.passwd;
+				delete safeUser.pwd;
+				window.localStorage.setItem('parkhr.user', JSON.stringify(safeUser));
+			} catch (err) {
+				console.warn('Failed to persist user to localStorage', err);
 			}
 
 			dispatch(setUser(user));

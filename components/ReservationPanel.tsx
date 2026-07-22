@@ -15,19 +15,22 @@ import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import { useAppSelector } from '../store/store';
 
 type SlotStatus = 'available' | 'occupied' | 'reserved';
 type VehicleType = 'Sedan' | 'SUV' | 'Motorcycle' | 'EV';
 type FilterValue = 'all' | SlotStatus;
 
 interface Slot {
-  id: number;
+  id?: number;
+  _id?: string;
   code: string;
   zone: string;
   level: string;
   status: SlotStatus;
   pricePerHour: number;
   features: string[];
+  occupantDetails?: SlotOccupantDetails | null;
 }
 
 interface ReservationRecord {
@@ -181,13 +184,21 @@ const readStoredSlotManualState = (): Record<string, SlotManualState> => {
   }
 };
 
-const createDefaultOccupiedDetails = (slot: Slot): SlotOccupantDetails => ({
-  customerName: `Occupant ${slot.id}`,
-  contactNumber: `09${String(100000000 + slot.id).slice(0, 9)}`,
-  plateNumber: `PKR-${String(1000 + slot.id)}`,
-  startTime: new Date(Date.now() - ((slot.id % 4) + 1) * 60 * 60 * 1000).toISOString(),
-  durationHours: (slot.id % 4) + 1,
-});
+const createDefaultOccupiedDetails = (slot: Slot): SlotOccupantDetails => {
+  const slotNumber = Number(slot.code.split('-')[1]) || 1;
+  const duration = (slotNumber % 4) + 1;
+  const d = new Date(Date.now() - duration * 60 * 60 * 1000);
+  const iso = Number.isFinite(d.getTime()) ? d.toISOString() : new Date().toISOString();
+  const normalizedStartTime = iso.slice(0, 16);
+
+  return {
+    customerName: `Occupant ${slot.code}`,
+    contactNumber: `09${String(100000000 + slotNumber).slice(-10)}`,
+    plateNumber: `PKR-${String(1000 + slotNumber)}`,
+    startTime: normalizedStartTime,
+    durationHours: duration,
+  };
+};
 
 export default function ReservationPanel({
   title = 'Reserve a parking space',
@@ -218,6 +229,12 @@ export default function ReservationPanel({
     durationHours: '2',
   });
   const [feedback, setFeedback] = React.useState<{ severity: 'success' | 'info'; message: string } | null>(null);
+  const [dbSlots, setDbSlots] = React.useState<Slot[]>([]);
+  const [loadingSlots, setLoadingSlots] = React.useState(true);
+  const [slotsLoaded, setSlotsLoaded] = React.useState(false);
+  const [addSlotLoading, setAddSlotLoading] = React.useState(false);
+  const user = useAppSelector((s) => s.user.user);
+  const isAdmin = String(user?.userType || '').toLowerCase() === 'admin';
 
   React.useEffect(() => {
     setReservations(readStoredReservations());
@@ -241,8 +258,37 @@ export default function ReservationPanel({
     window.localStorage.setItem(SLOT_MANUAL_STATE_KEY, JSON.stringify(slotManualState));
   }, [slotManualState]);
 
+  React.useEffect(() => {
+    const fetchSlots = async () => {
+      try {
+        const res = await fetch('/api/parking-slots');
+        if (!res.ok) {
+          throw new Error(`Failed to load parking slots: ${res.status}`);
+        }
+
+        const body = await res.json();
+        if (Array.isArray(body.slots)) {
+          setDbSlots(
+            body.slots.map((slot: any, index: number) => ({
+              ...slot,
+              id: slot.id ?? index + 1,
+              occupantDetails: slot.occupantDetails ?? null,
+            })),
+          );
+        }
+      } catch (err) {
+        console.warn('Failed to load parking slots', err);
+      } finally {
+        setLoadingSlots(false);
+        setSlotsLoaded(true);
+      }
+    };
+
+    fetchSlots();
+  }, []);
+
   const slots = React.useMemo(() => {
-    const base = createBaseSlots();
+    const base = slotsLoaded ? dbSlots : createBaseSlots();
     const reservedCodes = new Set(reservations.map((reservation) => reservation.slotCode));
     return base.map((slot) => {
       const manual = slotManualState[slot.code];
@@ -253,7 +299,7 @@ export default function ReservationPanel({
         ? { ...slot, status: 'reserved' as const }
         : slot;
     });
-  }, [reservations, slotManualState]);
+  }, [dbSlots, reservations, slotManualState, slotsLoaded]);
 
   const zones = React.useMemo(() => ['all', ...new Set(slots.map((slot) => slot.zone))], [slots]);
   const selectedSlot = React.useMemo(
@@ -310,6 +356,10 @@ export default function ReservationPanel({
       return manual.details;
     }
 
+    if (slot.occupantDetails) {
+      return slot.occupantDetails;
+    }
+
     const reservation = reservations.find((item) => item.slotCode === slot.code);
     if (reservation) {
       return {
@@ -342,7 +392,7 @@ export default function ReservationPanel({
     const details = getSlotDetails(slot);
     setSlotEditCode(slot.code);
     setSlotEditForm({
-      status: slot.status,
+      status: !isAdmin && slot.status === 'available' ? 'reserved' : slot.status,
       customerName: details?.customerName || '',
       contactNumber: details?.contactNumber || '',
       plateNumber: details?.plateNumber || '',
@@ -363,6 +413,53 @@ export default function ReservationPanel({
       severity: 'success',
       message: `${slot.code} selected. Complete the form to confirm your reservation.`,
     });
+  };
+
+  const handleAddSlot = async () => {
+    if (!isAdmin) return;
+    if (!slotsLoaded) return;
+    setAddSlotLoading(true);
+
+    const level = planLevel;
+    const prefix = level === 'Level 1' ? 'L1' : 'L2';
+    const levelSlots = dbSlots.filter((slot) => slot.level === level);
+    const highestIndex = levelSlots.reduce((max, slot) => {
+      const slotNumber = Number(slot.code.split('-')[1]);
+      return Number.isFinite(slotNumber) ? Math.max(max, slotNumber) : max;
+    }, 0);
+    const nextIndex = highestIndex + 1;
+    const code = `${prefix}-${String(nextIndex).padStart(2, '0')}`;
+    const zone = level === 'Level 1' ? 'North Wing' : 'South Wing';
+    const newSlot = {
+      code,
+      zone,
+      level,
+      status: 'available' as SlotStatus,
+      pricePerHour: 5,
+      features: ['Covered', 'Wide bay'],
+    };
+
+    try {
+      const res = await fetch('/api/parking-slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSlot),
+      });
+
+      if (!res.ok) {
+        const errorBody = await res.json();
+        throw new Error(errorBody?.error || `Add slot failed: ${res.status}`);
+      }
+
+      const body = await res.json();
+      setDbSlots((current) => [...current, body.slot]);
+      setFeedback({ severity: 'success', message: `Slot ${body.slot.code} added successfully.` });
+    } catch (err) {
+      console.error(err);
+      setFeedback({ severity: 'info', message: String(err) });
+    } finally {
+      setAddSlotLoading(false);
+    }
   };
 
   const handleReserve = () => {
@@ -418,27 +515,55 @@ export default function ReservationPanel({
       return;
     }
 
-    const nextStatus = slotEditForm.status;
+    const nextStatus = isAdmin ? slotEditForm.status : 'reserved';
     const shouldStoreDetails = nextStatus !== 'available';
 
-    setSlotManualState((prev) => ({
-      ...prev,
-      [slotEditCode]: {
-        status: nextStatus,
-        details: shouldStoreDetails
-          ? {
-              customerName: slotEditForm.customerName.trim() || 'Unknown',
-              contactNumber: slotEditForm.contactNumber.trim() || 'N/A',
-              plateNumber: slotEditForm.plateNumber.trim().toUpperCase() || 'N/A',
-              startTime: slotEditForm.startTime || buildDefaultStartTime(),
-              durationHours: Math.max(1, Number(slotEditForm.durationHours) || 1),
-            }
-          : null,
-      },
-    }));
+    const occupantDetails = shouldStoreDetails
+      ? {
+          customerName: slotEditForm.customerName.trim() || 'Unknown',
+          contactNumber: slotEditForm.contactNumber.trim() || 'N/A',
+          plateNumber: slotEditForm.plateNumber.trim().toUpperCase() || 'N/A',
+          startTime: slotEditForm.startTime || buildDefaultStartTime(),
+          durationHours: Math.max(1, Number(slotEditForm.durationHours) || 1),
+        }
+      : null;
 
-    setFeedback({ severity: 'success', message: `${slotEditCode} updated to ${slotPalette[nextStatus].label}.` });
-    setSlotModalOpen(false);
+    const saveToServer = async () => {
+      if (!slotsLoaded) return null;
+      try {
+        const res = await fetch(`/api/parking-slots/${encodeURIComponent(slotEditCode)}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ slotStatus: nextStatus, occupantDetails }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err?.error || `Update failed: ${res.status}`);
+        }
+        const body = await res.json();
+        return body.slot;
+      } catch (err) {
+        console.warn('Failed to save slot to server', err);
+        return null;
+      }
+    };
+
+    (async () => {
+      const updatedSlot = await saveToServer();
+      if (updatedSlot) {
+        // update local dbSlots so UI disables the slot (status -> occupied)
+        setDbSlots((current) => current.map((s) => (s.code === updatedSlot.code ? updatedSlot : s)));
+        setFeedback({ severity: 'success', message: `${slotEditCode} updated to ${slotPalette[updatedSlot.status].label}.` });
+      } else {
+        // fallback to local manual state if server unavailable
+        setSlotManualState((prev) => ({
+          ...prev,
+          [slotEditCode]: { status: nextStatus, details: occupantDetails },
+        }));
+        setFeedback({ severity: 'success', message: `${slotEditCode} updated locally to ${slotPalette[nextStatus].label}.` });
+      }
+      setSlotModalOpen(false);
+    })();
   };
 
   const handleFillActiveReservation = () => {
@@ -485,6 +610,7 @@ export default function ReservationPanel({
                 {subtitle}
               </Typography>
             </Box>
+
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
               <Button
                 variant="contained"
@@ -500,6 +626,7 @@ export default function ReservationPanel({
               >
                 View active reservation
               </Button>
+
               <Button
                 variant="outlined"
                 onClick={handleCancelReservation}
@@ -509,8 +636,6 @@ export default function ReservationPanel({
               </Button>
             </Stack>
           </Stack>
-
-          {feedback ? <Alert severity={feedback.severity}>{feedback.message}</Alert> : null}
 
           <Box
             sx={{
@@ -699,7 +824,7 @@ export default function ReservationPanel({
                     Select a specific parking bay within the actual structure layout.
                   </Typography>
                 </Box>
-                <Stack direction="row" spacing={1}>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
                   {(['Level 1', 'Level 2'] as const).map((level) => (
                     <Chip
                       key={level}
@@ -710,6 +835,16 @@ export default function ReservationPanel({
                       variant={planLevel === level ? 'filled' : 'outlined'}
                     />
                   ))}
+                  {isAdmin && slotsLoaded ? (
+                    <Button
+                      onClick={handleAddSlot}
+                      disabled={addSlotLoading || loadingSlots}
+                      variant="outlined"
+                      sx={{ textTransform: 'none', borderRadius: 999, height: 40 }}
+                    >
+                      {addSlotLoading ? 'Adding slot...' : `Add ${planLevel} slot`}
+                    </Button>
+                  ) : null}
                 </Stack>
               </Stack>
 
@@ -762,10 +897,12 @@ export default function ReservationPanel({
                   const timeDisplay = getSlotTimeDisplay(slot);
                   const step = floorPlanSlots.topRow.length > 1 ? (84 / (floorPlanSlots.topRow.length - 1)) : 0;
                   const left = 8 + (index * step);
+                  const clickable = isAdmin || slot.status !== 'occupied';
                   return (
                     <Button
                       key={slot.code}
-                      onClick={() => handleSelectSlot(slot)}
+                      onClick={clickable ? () => handleSelectSlot(slot) : undefined}
+                      disabled={!clickable}
                       variant="contained"
                       disableElevation
                       sx={{
@@ -783,7 +920,13 @@ export default function ReservationPanel({
                         border: `1px solid ${palette.border}`,
                         boxShadow: isSelected ? '0 0 0 3px rgba(15, 118, 110, 0.22)' : '0 10px 22px rgba(15, 23, 42, 0.12)',
                         textTransform: 'none',
-                        '&:hover': { background: palette.bg },
+                          '&:hover': { background: palette.bg },
+                          '&.Mui-disabled': {
+                            color: '#ffffff',
+                            opacity: 1,
+                            background: palette.bg,
+                            border: `1px solid ${palette.border}`,
+                          },
                       }}
                     >
                       <Stack spacing={0.2} sx={{ textAlign: 'center', width: '100%' }}>
@@ -805,10 +948,12 @@ export default function ReservationPanel({
                   const timeDisplay = getSlotTimeDisplay(slot);
                   const step = floorPlanSlots.bottomRow.length > 1 ? (84 / (floorPlanSlots.bottomRow.length - 1)) : 0;
                   const left = 8 + (index * step);
+                  const clickable = isAdmin || slot.status !== 'occupied';
                   return (
                     <Button
                       key={slot.code}
-                      onClick={() => handleSelectSlot(slot)}
+                      onClick={clickable ? () => handleSelectSlot(slot) : undefined}
+                      disabled={!clickable}
                       variant="contained"
                       disableElevation
                       sx={{
@@ -826,7 +971,13 @@ export default function ReservationPanel({
                         border: `1px solid ${palette.border}`,
                         boxShadow: isSelected ? '0 0 0 3px rgba(15, 118, 110, 0.22)' : '0 10px 22px rgba(15, 23, 42, 0.12)',
                         textTransform: 'none',
-                        '&:hover': { background: palette.bg },
+                          '&:hover': { background: palette.bg },
+                          '&.Mui-disabled': {
+                            color: '#ffffff',
+                            opacity: 1,
+                            background: palette.bg,
+                            border: `1px solid ${palette.border}`,
+                          },
                       }}
                     >
                       <Stack spacing={0.2} sx={{ textAlign: 'center', width: '100%' }}>
@@ -856,11 +1007,11 @@ export default function ReservationPanel({
       </Box>
 
       <Dialog open={slotModalOpen} onClose={() => setSlotModalOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800 }}>
+        <DialogTitle sx={{ fontWeight: 800 }} >
           {slotEditCode ? `Manage Slot ${slotEditCode}` : 'Manage Slot'}
         </DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ pt: 0.5 }}>
+        <DialogContent >
+          <Stack spacing={2} sx={{ pt: 0.5, mt: 4 }}>
             <TextField
               select
               label="Slot Status"
@@ -868,9 +1019,15 @@ export default function ReservationPanel({
               onChange={(event) => setSlotEditForm((prev) => ({ ...prev, status: event.target.value as SlotStatus }))}
               fullWidth
             >
-              <MenuItem value="available">Available</MenuItem>
-              <MenuItem value="occupied">Occupied</MenuItem>
-              <MenuItem value="reserved">Reserved</MenuItem>
+                  {isAdmin ? (
+                    <>
+                      <MenuItem value="available">Available</MenuItem>
+                      <MenuItem value="occupied">Occupied</MenuItem>
+                      <MenuItem value="reserved">Reserved</MenuItem>
+                    </>
+                  ) : (
+                    <MenuItem value="reserved">Reserved</MenuItem>
+                  )}
             </TextField>
 
             {slotEditForm.status !== 'available' ? (
