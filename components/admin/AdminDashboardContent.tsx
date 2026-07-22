@@ -3,14 +3,15 @@ import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import ReservationPanel from './ReservationPanel';
-import HistoryPanel from './HistoryPanel';
-import SettingsPanel from './SettingsPanel';
-import AboutPanel from './AboutPanel';
-import FeedbackPanel from './FeedbackPanel';
-import PaymentPanel from './PaymentPanel';
+import ReservationPanel from '../ReservationPanel';
+import HistoryPanel from '../HistoryPanel';
+import SettingsPanel from '../SettingsPanel';
+import AboutPanel from '../AboutPanel';
+import FeedbackPanel from '../FeedbackPanel';
+import PaymentPanel from '../PaymentPanel';
+import AdminUserStaffManagement from './AdminUserStaffManagement';
 
-interface DashboardContentProps {
+interface AdminDashboardContentProps {
   section: string;
 }
 
@@ -18,10 +19,10 @@ const sectionMap: Record<string, ReactNode> = {
   Home: (
     <Paper sx={{ p: 3, borderRadius: 3 }}>
       <Typography variant="h5" sx={{ mb: 2 }}>
-        Home Dashboard
+        Admin Home Dashboard
       </Typography>
       <Typography color="text.secondary">
-        Welcome back! Use the sidebar to navigate between the dashboard modules.
+        Welcome back! Use the sidebar to navigate between the admin modules.
       </Typography>
     </Paper>
   ),
@@ -51,6 +52,21 @@ const sectionMap: Record<string, ReactNode> = {
   History: (
     <Stack spacing={3}>
       <HistoryPanel />
+    </Stack>
+  ),
+  'User Management': (
+    <Stack spacing={3}>
+      <AdminUserStaffManagement moduleView="User Management" />
+    </Stack>
+  ),
+  'Staff Management': (
+    <Stack spacing={3}>
+      <AdminUserStaffManagement moduleView="Staff Management" />
+    </Stack>
+  ),
+  'Roles & Permissions': (
+    <Stack spacing={3}>
+      <AdminUserStaffManagement moduleView="Roles & Permissions" />
     </Stack>
   ),
   Payment: (
@@ -101,7 +117,7 @@ const sectionMap: Record<string, ReactNode> = {
   ),
 };
 
-export default function DashboardContent({ section }: DashboardContentProps) {
+export default function AdminDashboardContent({ section }: AdminDashboardContentProps) {
   return (
     <Box sx={{ width: '100%', minHeight: '100%', px: { xs: 0, md: 0 } }}>
       {sectionMap[section] ?? sectionMap.Home}

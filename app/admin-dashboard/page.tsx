@@ -8,12 +8,13 @@ import CssBaseline from '@mui/material/CssBaseline';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import * as React from 'react';
+import { useRouter } from 'next/navigation';
 import { useAppSelector } from '../../store/store';
-import AppNavbar from '../../components/AppNavbar_2';
-import Header from '../../components/Header';
-import MainGrid from '../../components/MainGrid';
-import SideMenu from '../../components/SideMenu';
-import DashboardContent from '../../components/DashboardContent';
+import AdminAppNavbar from '../../components/admin/AdminAppNavbar';
+import AdminHeader from '../../components/admin/AdminHeader';
+import AdminMainGrid from '../../components/admin/AdminMainGrid';
+import AdminSideMenu from '../../components/admin/AdminSideMenu';
+import AdminDashboardContent from '../../components/admin/AdminDashboardContent';
 import AppTheme from '../../theme/AppTheme';
 import {
   chartsCustomizations,
@@ -29,8 +30,9 @@ const xThemeComponents = {
   ...treeViewCustomizations,
 };
 
-export default function Dashboard(props: { disableCustomTheme?: boolean }) {
+export default function AdminDashboard(props: { disableCustomTheme?: boolean }) {
   const [selectedSection, setSelectedSection] = React.useState('Home');
+  const router = useRouter();
   const user = useAppSelector((s) => s.user.user);
 
   const getCookie = (name: string) => {
@@ -43,18 +45,16 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
     // if user is not in redux store and no userId cookie, redirect to login
     const id = getCookie('userId');
     if (!user && !id) {
-      if (typeof window !== 'undefined') {
-        window.location.replace('/login');
-      }
+      router.replace('/login');
     }
-  }, [user]);
+  }, [user, router]);
 
   return (
     <AppTheme {...props} themeComponents={xThemeComponents}>
       <CssBaseline enableColorScheme />
       <Box sx={{ display: 'flex' }}>
-        <SideMenu selectedSection={selectedSection} onSelectSection={setSelectedSection} />
-        <AppNavbar selectedSection={selectedSection} onSelectSection={setSelectedSection} />
+        <AdminSideMenu selectedSection={selectedSection} onSelectSection={setSelectedSection} />
+        <AdminAppNavbar selectedSection={selectedSection} onSelectSection={setSelectedSection} />
         {/* Main content */}
         <Box
           component="main"
@@ -75,12 +75,12 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
               mt: { xs: 8, md: 0 },
             }}
           >
-            <Header />
+            <AdminHeader />
             <Box sx={{ width: '100%', maxWidth: 1700, mx: 'auto' }}>
               {selectedSection === 'Home' ? (
-                <MainGrid />
+                <AdminMainGrid />
               ) : (
-                <DashboardContent section={selectedSection} />
+                <AdminDashboardContent section={selectedSection} />
               )}
             </Box>
           </Stack>

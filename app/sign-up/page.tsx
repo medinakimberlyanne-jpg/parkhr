@@ -114,6 +114,7 @@ export default function SignUpPage() {
 
           <Box component="form" noValidate onSubmit={handleSubmit}>
             <Stack spacing={2}>
+              <input type="hidden" name="userType" value="user" />
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
                 <TextField
                   fullWidth
