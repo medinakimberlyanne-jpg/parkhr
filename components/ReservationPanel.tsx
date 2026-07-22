@@ -637,6 +637,29 @@ export default function ReservationPanel({
     }
   };
 
+  const handleDeleteSlot = async () => {
+    if (!slotEditCode) return;
+    try {
+      const res = await fetch(`/api/parking-slots/${encodeURIComponent(slotEditCode)}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || `Delete failed: ${res.status}`);
+      }
+      // remove locally
+      setDbSlots((current) => current.filter((s) => s.code !== slotEditCode));
+      setReservations((current) => current.filter((r) => r.slotCode !== slotEditCode));
+      setFeedback({ severity: 'success', message: `${slotEditCode} deleted.` });
+    } catch (err) {
+      console.warn('Failed to delete slot', err);
+      setFeedback({ severity: 'info', message: String(err) });
+    } finally {
+      setSlotModalOpen(false);
+    }
+  };
+
   return (
     <Stack spacing={3} sx={{ width: '100%' }}>
       <Paper
@@ -1065,80 +1088,89 @@ export default function ReservationPanel({
         <DialogTitle sx={{ fontWeight: 800 }} >
           {slotEditCode ? `Manage Slot ${slotEditCode}` : 'Manage Slot'}
         </DialogTitle>
-        <DialogContent >
+        <DialogContent>
           <Stack spacing={2} sx={{ pt: 0.5, mt: 4 }}>
-            <TextField
-              select
-              label="Slot Status"
-              value={slotEditForm.status}
-              onChange={(event) => setSlotEditForm((prev) => ({ ...prev, status: event.target.value as SlotStatus }))}
-              fullWidth
-            >
-                  {isAdmin ? [
-                      <MenuItem key="available" value="available">Available</MenuItem>,
-                      <MenuItem key="occupied" value="occupied">Occupied</MenuItem>,
-                      <MenuItem key="reserved" value="reserved">Reserved</MenuItem>,
-                    ] : (
-                    <MenuItem value="reserved">Reserved</MenuItem>
-                  )}
-            </TextField>
-
-            {slotEditForm.status !== 'available' ? (
+            {isAdmin && selectedSlot?.status === 'available' ? (
               <>
-                <TextField
-                  label="Customer Name"
-                  value={slotEditForm.customerName}
-                  onChange={(event) => setSlotEditForm((prev) => ({ ...prev, customerName: event.target.value }))}
-                  fullWidth
-                />
-                <TextField
-                  label="Contact Number"
-                  value={slotEditForm.contactNumber}
-                  onChange={(event) => setSlotEditForm((prev) => ({ ...prev, contactNumber: event.target.value }))}
-                  fullWidth
-                />
-                <TextField
-                  label="Plate Number"
-                  value={slotEditForm.plateNumber}
-                  onChange={(event) => setSlotEditForm((prev) => ({ ...prev, plateNumber: event.target.value.toUpperCase() }))}
-                  fullWidth
-                />
-                <TextField
-                  select
-                  label="Vehicle Type"
-                  value={slotEditForm.vehicleType}
-                  onChange={(event) => setSlotEditForm((prev) => ({ ...prev, vehicleType: event.target.value as VehicleType }))}
-                  fullWidth
-                >
-                  {vehicleTypes.map((type) => (
-                    <MenuItem key={type} value={type}>
-                      {type}
-                    </MenuItem>
-                  ))}
-                </TextField>
-                <TextField
-                  type="datetime-local"
-                  label="Start Time"
-                  value={slotEditForm.startTime}
-                  onChange={(event) => setSlotEditForm((prev) => ({ ...prev, startTime: event.target.value }))}
-                  fullWidth
-                />
-                <TextField
-                  select
-                  label="Duration"
-                  value={slotEditForm.durationHours}
-                  onChange={(event) => setSlotEditForm((prev) => ({ ...prev, durationHours: event.target.value }))}
-                  fullWidth
-                >
-                  {durationOptions.map((hours) => (
-                    <MenuItem key={hours} value={String(hours)}>
-                      {hours} {hours === 1 ? 'hour' : 'hours'}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                <Typography variant="body2" sx={{ color: 'text.secondary' }}>Slot Code</Typography>
+                <Typography sx={{ fontWeight: 800, fontSize: 16 }}>{slotEditCode}</Typography>
               </>
             ) : (
-              <Alert severity="info">This slot will be released and shown as available.</Alert>
+              <>
+                <TextField
+                  select
+                  label="Slot Status"
+                  value={slotEditForm.status}
+                  onChange={(event) => setSlotEditForm((prev) => ({ ...prev, status: event.target.value as SlotStatus }))}
+                  fullWidth
+                >
+                  {isAdmin ? [
+                    <MenuItem key="available" value="available">Available</MenuItem>,
+                    <MenuItem key="occupied" value="occupied">Occupied</MenuItem>,
+                    <MenuItem key="reserved" value="reserved">Reserved</MenuItem>,
+                  ] : (
+                    <MenuItem value="reserved">Reserved</MenuItem>
+                  )}
+                </TextField>
+
+                {slotEditForm.status !== 'available' ? (
+                  <>
+                    <TextField
+                      label="Customer Name"
+                      value={slotEditForm.customerName}
+                      onChange={(event) => setSlotEditForm((prev) => ({ ...prev, customerName: event.target.value }))}
+                      fullWidth
+                    />
+                    <TextField
+                      label="Contact Number"
+                      value={slotEditForm.contactNumber}
+                      onChange={(event) => setSlotEditForm((prev) => ({ ...prev, contactNumber: event.target.value }))}
+                      fullWidth
+                    />
+                    <TextField
+                      label="Plate Number"
+                      value={slotEditForm.plateNumber}
+                      onChange={(event) => setSlotEditForm((prev) => ({ ...prev, plateNumber: event.target.value.toUpperCase() }))}
+                      fullWidth
+                    />
+                    <TextField
+                      select
+                      label="Vehicle Type"
+                      value={slotEditForm.vehicleType}
+                      onChange={(event) => setSlotEditForm((prev) => ({ ...prev, vehicleType: event.target.value as VehicleType }))}
+                      fullWidth
+                    >
+                      {vehicleTypes.map((type) => (
+                        <MenuItem key={type} value={type}>
+                          {type}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    <TextField
+                      type="datetime-local"
+                      label="Start Time"
+                      value={slotEditForm.startTime}
+                      onChange={(event) => setSlotEditForm((prev) => ({ ...prev, startTime: event.target.value }))}
+                      fullWidth
+                    />
+                    <TextField
+                      select
+                      label="Duration"
+                      value={slotEditForm.durationHours}
+                      onChange={(event) => setSlotEditForm((prev) => ({ ...prev, durationHours: event.target.value }))}
+                      fullWidth
+                    >
+                      {durationOptions.map((hours) => (
+                        <MenuItem key={hours} value={String(hours)}>
+                          {hours} {hours === 1 ? 'hour' : 'hours'}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </>
+                ) : (
+                  <Alert severity="info">This slot will be released and shown as available.</Alert>
+                )}
+              </>
             )}
           </Stack>
         </DialogContent>
@@ -1146,7 +1178,11 @@ export default function ReservationPanel({
           <Button onClick={() => setSlotModalOpen(false)} sx={{ textTransform: 'none' }}>
             Close
           </Button>
-          {!isAdmin && selectedSlot?.status === 'reserved' && selectedSlot.userId && selectedSlot.userId === currentUserId ? (
+          {isAdmin && selectedSlot?.status === 'available' ? (
+            <Button onClick={handleDeleteSlot} variant="contained" color="error" sx={{ textTransform: 'none' }}>
+              Delete Slot
+            </Button>
+          ) : !isAdmin && selectedSlot?.status === 'reserved' && selectedSlot.userId && selectedSlot.userId === currentUserId ? (
             <Button onClick={handleCancelReservedSlot} variant="contained" color="error" sx={{ textTransform: 'none' }}>
               Cancel Reserved
             </Button>

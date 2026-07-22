@@ -122,3 +122,47 @@ export async function PATCH(request: Request, context: { params?: { code?: strin
     return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
   }
 }
+
+export async function DELETE(request: Request, context: { params?: { code?: string } }) {
+  try {
+    const params = context?.params || {};
+    let code = params.code;
+    if (!code) {
+      try {
+        const url = new URL(request.url);
+        const segments = url.pathname.split('/').filter(Boolean);
+        code = segments[segments.length - 1] || undefined;
+      } catch (e) {
+        code = undefined;
+      }
+    }
+    if (!code) {
+      return NextResponse.json({ error: 'Missing slot code' }, { status: 400 });
+    }
+
+    const cookieHeader = request.headers.get('cookie');
+    const userId = parseCookieValue(cookieHeader, 'userId');
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { db } = await connectToDatabase();
+    const usersCollection = db.collection('users');
+    const user = await usersCollection.findOne({ _id: new ObjectId(userId) });
+    if (!user || String(user.userType || '').toLowerCase() !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const collection = db.collection('parkingSlot');
+    const existing = await collection.findOne({ code });
+    if (!existing) {
+      return NextResponse.json({ error: 'Slot not found' }, { status: 404 });
+    }
+
+    await collection.deleteOne({ code });
+    return NextResponse.json({ success: true });
+  } catch (err: any) {
+    console.error('Error in DELETE /api/parking-slots/[code]:', err);
+    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+  }
+}
