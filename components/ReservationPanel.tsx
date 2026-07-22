@@ -6,6 +6,10 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Divider from '@mui/material/Divider';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
@@ -47,7 +51,21 @@ interface ReservationPanelProps {
   compact?: boolean;
 }
 
+interface SlotOccupantDetails {
+  customerName: string;
+  contactNumber: string;
+  plateNumber: string;
+  startTime: string;
+  durationHours: number;
+}
+
+interface SlotManualState {
+  status: SlotStatus;
+  details: SlotOccupantDetails | null;
+}
+
 const STORAGE_KEY = 'parkhr.customer.reservations';
+const SLOT_MANUAL_STATE_KEY = 'parkhr.customer.slot-manual-state';
 
 const slotPalette: Record<SlotStatus, { label: string; bg: string; color: string; border: string }> = {
   available: {
@@ -113,9 +131,9 @@ const buildDefaultStartTime = () => {
 };
 
 const formatMoney = (value: number) =>
-  new Intl.NumberFormat('en-US', {
+  new Intl.NumberFormat('en-PH', {
     style: 'currency',
-    currency: 'USD',
+    currency: 'PHP',
     maximumFractionDigits: 2,
   }).format(value);
 
@@ -145,6 +163,32 @@ const readStoredReservations = (): ReservationRecord[] => {
   }
 };
 
+const readStoredSlotManualState = (): Record<string, SlotManualState> => {
+  if (typeof window === 'undefined') {
+    return {};
+  }
+
+  try {
+    const raw = window.localStorage.getItem(SLOT_MANUAL_STATE_KEY);
+    if (!raw) {
+      return {};
+    }
+
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const createDefaultOccupiedDetails = (slot: Slot): SlotOccupantDetails => ({
+  customerName: `Occupant ${slot.id}`,
+  contactNumber: `09${String(100000000 + slot.id).slice(0, 9)}`,
+  plateNumber: `PKR-${String(1000 + slot.id)}`,
+  startTime: new Date(Date.now() - ((slot.id % 4) + 1) * 60 * 60 * 1000).toISOString(),
+  durationHours: (slot.id % 4) + 1,
+});
+
 export default function ReservationPanel({
   title = 'Reserve a parking space',
   subtitle = 'Choose a live slot, confirm your parking details, and manage your reservation in one place.',
@@ -153,6 +197,7 @@ export default function ReservationPanel({
   const [search, setSearch] = React.useState('');
   const [statusFilter, setStatusFilter] = React.useState<FilterValue>('all');
   const [zoneFilter, setZoneFilter] = React.useState('all');
+  const [planLevel, setPlanLevel] = React.useState<'Level 1' | 'Level 2'>('Level 1');
   const [selectedSlotCode, setSelectedSlotCode] = React.useState<string | null>(null);
   const [customerName, setCustomerName] = React.useState('');
   const [plateNumber, setPlateNumber] = React.useState('');
@@ -161,10 +206,22 @@ export default function ReservationPanel({
   const [durationHours, setDurationHours] = React.useState('2');
   const [notes, setNotes] = React.useState('');
   const [reservations, setReservations] = React.useState<ReservationRecord[]>([]);
+  const [slotManualState, setSlotManualState] = React.useState<Record<string, SlotManualState>>({});
+  const [slotModalOpen, setSlotModalOpen] = React.useState(false);
+  const [slotEditCode, setSlotEditCode] = React.useState<string | null>(null);
+  const [slotEditForm, setSlotEditForm] = React.useState({
+    status: 'available' as SlotStatus,
+    customerName: '',
+    contactNumber: '',
+    plateNumber: '',
+    startTime: '',
+    durationHours: '2',
+  });
   const [feedback, setFeedback] = React.useState<{ severity: 'success' | 'info'; message: string } | null>(null);
 
   React.useEffect(() => {
     setReservations(readStoredReservations());
+    setSlotManualState(readStoredSlotManualState());
     setStartTime(buildDefaultStartTime());
   }, []);
 
@@ -176,15 +233,27 @@ export default function ReservationPanel({
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(reservations));
   }, [reservations]);
 
+  React.useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem(SLOT_MANUAL_STATE_KEY, JSON.stringify(slotManualState));
+  }, [slotManualState]);
+
   const slots = React.useMemo(() => {
     const base = createBaseSlots();
     const reservedCodes = new Set(reservations.map((reservation) => reservation.slotCode));
-    return base.map((slot) =>
-      reservedCodes.has(slot.code) && slot.status === 'available'
+    return base.map((slot) => {
+      const manual = slotManualState[slot.code];
+      if (manual) {
+        return { ...slot, status: manual.status };
+      }
+      return reservedCodes.has(slot.code) && slot.status === 'available'
         ? { ...slot, status: 'reserved' as const }
-        : slot,
-    );
-  }, [reservations]);
+        : slot;
+    });
+  }, [reservations, slotManualState]);
 
   const zones = React.useMemo(() => ['all', ...new Set(slots.map((slot) => slot.zone))], [slots]);
   const selectedSlot = React.useMemo(
@@ -215,6 +284,19 @@ export default function ReservationPanel({
     });
   }, [search, slots, statusFilter, zoneFilter]);
 
+  const floorPlanSlots = React.useMemo(() => {
+    const levelSlots = filteredSlots
+      .filter((slot) => slot.level === planLevel)
+      .sort((a, b) => a.id - b.id);
+
+    const midpoint = Math.ceil(levelSlots.length / 2);
+    return {
+      topRow: levelSlots.slice(0, midpoint),
+      bottomRow: levelSlots.slice(midpoint),
+      all: levelSlots,
+    };
+  }, [filteredSlots, planLevel]);
+
   const availableCount = slots.filter((slot) => slot.status === 'available').length;
   const occupiedCount = slots.filter((slot) => slot.status === 'occupied').length;
   const reservedCount = slots.filter((slot) => slot.status === 'reserved').length;
@@ -222,8 +304,52 @@ export default function ReservationPanel({
   const duration = Number(durationHours);
   const estimatedTotal = selectedSlot ? selectedSlot.pricePerHour * duration : 0;
 
+  const getSlotDetails = React.useCallback((slot: Slot): SlotOccupantDetails | null => {
+    const manual = slotManualState[slot.code];
+    if (manual?.details) {
+      return manual.details;
+    }
+
+    const reservation = reservations.find((item) => item.slotCode === slot.code);
+    if (reservation) {
+      return {
+        customerName: reservation.customerName,
+        contactNumber: 'N/A',
+        plateNumber: reservation.plateNumber,
+        startTime: reservation.startTime,
+        durationHours: reservation.durationHours,
+      };
+    }
+
+    if (slot.status === 'occupied' || slot.status === 'reserved') {
+      return createDefaultOccupiedDetails(slot);
+    }
+
+    return null;
+  }, [reservations, slotManualState]);
+
+  const getSlotTimeDisplay = React.useCallback((slot: Slot) => {
+    const details = getSlotDetails(slot);
+    if (!details || slot.status === 'available') {
+      return null;
+    }
+    return `${formatDateTime(details.startTime)} • ${details.durationHours}h`;
+  }, [getSlotDetails]);
+
   const handleSelectSlot = (slot: Slot) => {
     setSelectedSlotCode(slot.code);
+
+    const details = getSlotDetails(slot);
+    setSlotEditCode(slot.code);
+    setSlotEditForm({
+      status: slot.status,
+      customerName: details?.customerName || '',
+      contactNumber: details?.contactNumber || '',
+      plateNumber: details?.plateNumber || '',
+      startTime: details?.startTime || buildDefaultStartTime(),
+      durationHours: String(details?.durationHours || 2),
+    });
+    setSlotModalOpen(true);
 
     if (slot.status !== 'available') {
       setFeedback({
@@ -285,6 +411,34 @@ export default function ReservationPanel({
     setSearch('');
     setStatusFilter('all');
     setZoneFilter('all');
+  };
+
+  const handleSaveSlotStatus = () => {
+    if (!slotEditCode) {
+      return;
+    }
+
+    const nextStatus = slotEditForm.status;
+    const shouldStoreDetails = nextStatus !== 'available';
+
+    setSlotManualState((prev) => ({
+      ...prev,
+      [slotEditCode]: {
+        status: nextStatus,
+        details: shouldStoreDetails
+          ? {
+              customerName: slotEditForm.customerName.trim() || 'Unknown',
+              contactNumber: slotEditForm.contactNumber.trim() || 'N/A',
+              plateNumber: slotEditForm.plateNumber.trim().toUpperCase() || 'N/A',
+              startTime: slotEditForm.startTime || buildDefaultStartTime(),
+              durationHours: Math.max(1, Number(slotEditForm.durationHours) || 1),
+            }
+          : null,
+      },
+    }));
+
+    setFeedback({ severity: 'success', message: `${slotEditCode} updated to ${slotPalette[nextStatus].label}.` });
+    setSlotModalOpen(false);
   };
 
   const handleFillActiveReservation = () => {
@@ -394,14 +548,7 @@ export default function ReservationPanel({
         </Stack>
       </Paper>
 
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', xl: compact ? '1fr' : '1.55fr 1fr' },
-          gap: 3,
-          alignItems: 'start',
-        }}
-      >
+      <Box sx={{ width: '100%' }}>
         <Paper
           elevation={0}
           sx={{
@@ -445,6 +592,56 @@ export default function ReservationPanel({
                 />
               </Stack>
             </Stack>
+
+            <Box
+              sx={{
+                p: 1.5,
+                borderRadius: 2,
+                border: '1px solid rgba(15, 23, 42, 0.12)',
+                backgroundColor: 'rgba(255, 255, 255, 0.92)',
+              }}
+            >
+              <Stack
+                direction={{ xs: 'column', sm: 'row' }}
+                spacing={1.25}
+                sx={{ alignItems: { sm: 'center' }, flexWrap: 'wrap', justifyContent: 'space-between' }}
+              >
+                <Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+                  Slot Status Color Guide
+                </Typography>
+                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                  {(['available', 'occupied', 'reserved'] as SlotStatus[]).map((status) => (
+                    <Box
+                      key={status}
+                      sx={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 1,
+                        px: 1.25,
+                        py: 0.65,
+                        borderRadius: 999,
+                        border: `1px solid ${slotPalette[status].border}`,
+                        backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 13,
+                          height: 13,
+                          borderRadius: '50%',
+                          background: slotPalette[status].bg,
+                          border: `1px solid ${slotPalette[status].border}`,
+                          flexShrink: 0,
+                        }}
+                      />
+                      <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.primary' }}>
+                        {slotPalette[status].label}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Stack>
+            </Box>
 
             <Box
               sx={{
@@ -492,225 +689,245 @@ export default function ReservationPanel({
               </Button>
             </Box>
 
-            <Box
-              sx={{
-                display: 'grid',
-                gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))', md: 'repeat(6, minmax(0, 1fr))' },
-                gap: 1.5,
-              }}
-            >
-              {filteredSlots.map((slot) => {
-                const isSelected = slot.code === selectedSlotCode;
-                const palette = slotPalette[slot.status];
-                return (
-                  <Button
-                    key={slot.code}
-                    onClick={() => handleSelectSlot(slot)}
-                    variant="contained"
-                    disableElevation
-                    sx={{
-                      minHeight: 112,
-                      borderRadius: 4,
-                      p: 1.5,
-                      color: palette.color,
-                      background: palette.bg,
-                      border: `1px solid ${palette.border}`,
-                      boxShadow: isSelected ? '0 0 0 3px rgba(15, 118, 110, 0.2)' : '0 18px 30px rgba(15, 23, 42, 0.08)',
-                      textTransform: 'none',
-                      alignItems: 'flex-start',
-                      justifyContent: 'space-between',
-                      '&:hover': {
+            <Stack spacing={1.5}>
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.25} sx={{ justifyContent: 'space-between', alignItems: { md: 'center' } }}>
+                <Box>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
+                    Interactive Facility Floor Plan
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Select a specific parking bay within the actual structure layout.
+                  </Typography>
+                </Box>
+                <Stack direction="row" spacing={1}>
+                  {(['Level 1', 'Level 2'] as const).map((level) => (
+                    <Chip
+                      key={level}
+                      label={level}
+                      clickable
+                      onClick={() => setPlanLevel(level)}
+                      color={planLevel === level ? 'primary' : 'default'}
+                      variant={planLevel === level ? 'filled' : 'outlined'}
+                    />
+                  ))}
+                </Stack>
+              </Stack>
+
+              <Box
+                sx={{
+                  position: 'relative',
+                  borderRadius: 4,
+                  border: '1px solid rgba(15, 23, 42, 0.12)',
+                  background:
+                    'linear-gradient(180deg, rgba(248,250,252,0.95) 0%, rgba(241,245,249,0.95) 100%)',
+                  minHeight: { xs: 390, md: 460 },
+                  p: { xs: 1.5, md: 2 },
+                  overflow: 'hidden',
+                }}
+              >
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    left: '6%',
+                    right: '6%',
+                    top: '40%',
+                    height: '20%',
+                    borderRadius: 3,
+                    background:
+                      'repeating-linear-gradient(90deg, rgba(15,23,42,0.04) 0, rgba(15,23,42,0.04) 18px, rgba(255,255,255,0.5) 18px, rgba(255,255,255,0.5) 34px)',
+                    border: '1px dashed rgba(15, 23, 42, 0.2)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Typography variant="caption" sx={{ fontWeight: 800, color: 'rgba(15,23,42,0.72)', letterSpacing: '0.04em' }}>
+                    MAIN DRIVE AISLE
+                  </Typography>
+                </Box>
+
+                <Typography sx={{ position: 'absolute', left: 20, top: 14, fontSize: 11, fontWeight: 800, color: 'rgba(15,23,42,0.65)' }}>
+                  ENTRANCE
+                </Typography>
+                <Typography sx={{ position: 'absolute', right: 20, top: 14, fontSize: 11, fontWeight: 800, color: 'rgba(15,23,42,0.65)' }}>
+                  EXIT
+                </Typography>
+                <Typography sx={{ position: 'absolute', right: 20, bottom: 14, fontSize: 11, fontWeight: 800, color: 'rgba(15,23,42,0.65)' }}>
+                  RAMP TO OTHER LEVEL
+                </Typography>
+
+                {floorPlanSlots.topRow.map((slot, index) => {
+                  const isSelected = slot.code === selectedSlotCode;
+                  const palette = slotPalette[slot.status];
+                  const timeDisplay = getSlotTimeDisplay(slot);
+                  const step = floorPlanSlots.topRow.length > 1 ? (84 / (floorPlanSlots.topRow.length - 1)) : 0;
+                  const left = 8 + (index * step);
+                  return (
+                    <Button
+                      key={slot.code}
+                      onClick={() => handleSelectSlot(slot)}
+                      variant="contained"
+                      disableElevation
+                      sx={{
+                        position: 'absolute',
+                        top: { xs: '12%', md: '11%' },
+                        left: `${left}%`,
+                        transform: 'translateX(-50%)',
+                        minWidth: 0,
+                        width: { xs: 64, md: 74 },
+                        minHeight: { xs: 76, md: 84 },
+                        borderRadius: 2.5,
+                        p: 0.8,
+                        color: palette.color,
                         background: palette.bg,
-                        transform: 'translateY(-2px)',
-                        boxShadow: '0 22px 38px rgba(15, 23, 42, 0.14)',
-                      },
-                    }}
-                  >
-                    <Stack spacing={0.75} sx={{ width: '100%', textAlign: 'left' }}>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>
-                        {slot.code}
-                      </Typography>
-                      <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                        {slot.zone}
-                      </Typography>
-                      <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                        {slot.level}
-                      </Typography>
-                      <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                        {slotPalette[slot.status].label} • {formatMoney(slot.pricePerHour)}/hr
-                      </Typography>
-                    </Stack>
-                  </Button>
-                );
-              })}
-            </Box>
+                        border: `1px solid ${palette.border}`,
+                        boxShadow: isSelected ? '0 0 0 3px rgba(15, 118, 110, 0.22)' : '0 10px 22px rgba(15, 23, 42, 0.12)',
+                        textTransform: 'none',
+                        '&:hover': { background: palette.bg },
+                      }}
+                    >
+                      <Stack spacing={0.2} sx={{ textAlign: 'center', width: '100%' }}>
+                        <Typography sx={{ fontWeight: 800, fontSize: 11, lineHeight: 1.1 }}>{slot.code}</Typography>
+                        <Typography sx={{ fontSize: 9, opacity: 0.9, lineHeight: 1.1 }}>{slot.zone}</Typography>
+                        {timeDisplay ? (
+                          <Typography sx={{ fontSize: 8, opacity: 0.92, lineHeight: 1.1 }}>
+                            {timeDisplay}
+                          </Typography>
+                        ) : null}
+                      </Stack>
+                    </Button>
+                  );
+                })}
+
+                {floorPlanSlots.bottomRow.map((slot, index) => {
+                  const isSelected = slot.code === selectedSlotCode;
+                  const palette = slotPalette[slot.status];
+                  const timeDisplay = getSlotTimeDisplay(slot);
+                  const step = floorPlanSlots.bottomRow.length > 1 ? (84 / (floorPlanSlots.bottomRow.length - 1)) : 0;
+                  const left = 8 + (index * step);
+                  return (
+                    <Button
+                      key={slot.code}
+                      onClick={() => handleSelectSlot(slot)}
+                      variant="contained"
+                      disableElevation
+                      sx={{
+                        position: 'absolute',
+                        top: { xs: '66%', md: '66%' },
+                        left: `${left}%`,
+                        transform: 'translateX(-50%)',
+                        minWidth: 0,
+                        width: { xs: 64, md: 74 },
+                        minHeight: { xs: 76, md: 84 },
+                        borderRadius: 2.5,
+                        p: 0.8,
+                        color: palette.color,
+                        background: palette.bg,
+                        border: `1px solid ${palette.border}`,
+                        boxShadow: isSelected ? '0 0 0 3px rgba(15, 118, 110, 0.22)' : '0 10px 22px rgba(15, 23, 42, 0.12)',
+                        textTransform: 'none',
+                        '&:hover': { background: palette.bg },
+                      }}
+                    >
+                      <Stack spacing={0.2} sx={{ textAlign: 'center', width: '100%' }}>
+                        <Typography sx={{ fontWeight: 800, fontSize: 11, lineHeight: 1.1 }}>{slot.code}</Typography>
+                        <Typography sx={{ fontSize: 9, opacity: 0.9, lineHeight: 1.1 }}>{slot.zone}</Typography>
+                        {timeDisplay ? (
+                          <Typography sx={{ fontSize: 8, opacity: 0.92, lineHeight: 1.1 }}>
+                            {timeDisplay}
+                          </Typography>
+                        ) : null}
+                      </Stack>
+                    </Button>
+                  );
+                })}
+              </Box>
+
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                Showing {floorPlanSlots.all.length} slots on {planLevel} based on current filters.
+              </Typography>
+            </Stack>
 
             {filteredSlots.length === 0 ? (
               <Alert severity="info">No parking slots match the current filters.</Alert>
             ) : null}
           </Stack>
         </Paper>
-
-        <Stack spacing={3}>
-          <Paper
-            elevation={0}
-            sx={{
-              borderRadius: 5,
-              p: { xs: 3, md: 3.5 },
-              border: '1px solid rgba(15, 23, 42, 0.08)',
-              backgroundColor: 'rgba(255, 255, 255, 0.94)',
-            }}
-          >
-            <Stack spacing={2.5}>
-              <Box>
-                <Typography variant="h5" sx={{ fontWeight: 800 }}>
-                  Reservation details
-                </Typography>
-                <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-                  {selectedSlot
-                    ? `You're booking ${selectedSlot.code} in ${selectedSlot.zone}.`
-                    : 'Pick a slot to begin your reservation.'}
-                </Typography>
-              </Box>
-
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 2,
-                  borderRadius: 4,
-                  backgroundColor: '#f8fafc',
-                  border: '1px solid rgba(15, 23, 42, 0.08)',
-                }}
-              >
-                <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', mb: 1.25 }}>
-                  <Chip label={selectedSlot?.code ?? 'No slot selected'} color="primary" variant="outlined" />
-                  <Chip label={selectedSlot ? slotPalette[selectedSlot.status].label : 'Waiting'} variant="outlined" />
-                </Stack>
-                <Typography variant="body2" color="text.secondary">
-                  {selectedSlot
-                    ? `${selectedSlot.features.join(' • ')} • ${formatMoney(selectedSlot.pricePerHour)}/hr`
-                    : 'Select an available space to view slot features and pricing.'}
-                </Typography>
-              </Paper>
-
-              <TextField label="Customer name" value={customerName} onChange={(event) => setCustomerName(event.target.value)} fullWidth />
-              <TextField label="Plate number" value={plateNumber} onChange={(event) => setPlateNumber(event.target.value.toUpperCase())} fullWidth />
-              <TextField
-                select
-                label="Vehicle type"
-                value={vehicleType}
-                onChange={(event) => setVehicleType(event.target.value as VehicleType)}
-                fullWidth
-              >
-                {vehicleTypes.map((item) => (
-                  <MenuItem key={item} value={item}>
-                    {item}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                type="datetime-local"
-                label="Arrival time"
-                value={startTime}
-                onChange={(event) => setStartTime(event.target.value)}
-                fullWidth
-              />
-              <TextField
-                select
-                label="Duration"
-                value={durationHours}
-                onChange={(event) => setDurationHours(event.target.value)}
-                fullWidth
-              >
-                {durationOptions.map((hours) => (
-                  <MenuItem key={hours} value={String(hours)}>
-                    {hours} {hours === 1 ? 'hour' : 'hours'}
-                  </MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                label="Notes for the parking team"
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                fullWidth
-                multiline
-                minRows={3}
-                placeholder="Example: arriving with an EV and need charger access."
-              />
-
-              <Paper
-                elevation={0}
-                sx={{
-                  p: 2,
-                  borderRadius: 4,
-                  background: 'linear-gradient(135deg, rgba(15, 118, 110, 0.1) 0%, rgba(29, 78, 216, 0.08) 100%)',
-                }}
-              >
-                <Typography variant="body2" color="text.secondary">
-                  Estimated total
-                </Typography>
-                <Typography variant="h4" sx={{ mt: 1, fontWeight: 800 }}>
-                  {formatMoney(estimatedTotal)}
-                </Typography>
-              </Paper>
-
-              <Button
-                variant="contained"
-                onClick={handleReserve}
-                sx={{
-                  py: 1.4,
-                  borderRadius: 999,
-                  textTransform: 'none',
-                  fontWeight: 700,
-                  bgcolor: '#0f766e',
-                  '&:hover': { bgcolor: '#115e59' },
-                }}
-              >
-                Confirm reservation
-              </Button>
-            </Stack>
-          </Paper>
-
-          <Paper
-            elevation={0}
-            sx={{
-              borderRadius: 5,
-              p: { xs: 3, md: 3.5 },
-              border: '1px solid rgba(15, 23, 42, 0.08)',
-              backgroundColor: 'rgba(255, 255, 255, 0.94)',
-            }}
-          >
-            <Stack spacing={2}>
-              <Typography variant="h6" sx={{ fontWeight: 800 }}>
-                Recent reservation activity
-              </Typography>
-              {reservations.length === 0 ? (
-                <Alert severity="info">No reservations yet. Your next booking will appear here instantly.</Alert>
-              ) : (
-                reservations.slice(0, compact ? 2 : 4).map((reservation, index) => (
-                  <React.Fragment key={reservation.id}>
-                    <Box>
-                      <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-                        <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                          {reservation.slotCode}
-                        </Typography>
-                        <Chip label={reservation.vehicleType} size="small" color="primary" variant="outlined" />
-                      </Stack>
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                        {reservation.customerName} • {reservation.plateNumber} • {formatDateTime(reservation.startTime)}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                        {reservation.zone} • {reservation.level} • {formatMoney(reservation.totalPrice)}
-                      </Typography>
-                    </Box>
-                    {index < Math.min(reservations.length, compact ? 2 : 4) - 1 ? <Divider /> : null}
-                  </React.Fragment>
-                ))
-              )}
-            </Stack>
-          </Paper>
-        </Stack>
       </Box>
+
+      <Dialog open={slotModalOpen} onClose={() => setSlotModalOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800 }}>
+          {slotEditCode ? `Manage Slot ${slotEditCode}` : 'Manage Slot'}
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ pt: 0.5 }}>
+            <TextField
+              select
+              label="Slot Status"
+              value={slotEditForm.status}
+              onChange={(event) => setSlotEditForm((prev) => ({ ...prev, status: event.target.value as SlotStatus }))}
+              fullWidth
+            >
+              <MenuItem value="available">Available</MenuItem>
+              <MenuItem value="occupied">Occupied</MenuItem>
+              <MenuItem value="reserved">Reserved</MenuItem>
+            </TextField>
+
+            {slotEditForm.status !== 'available' ? (
+              <>
+                <TextField
+                  label="Customer Name"
+                  value={slotEditForm.customerName}
+                  onChange={(event) => setSlotEditForm((prev) => ({ ...prev, customerName: event.target.value }))}
+                  fullWidth
+                />
+                <TextField
+                  label="Contact Number"
+                  value={slotEditForm.contactNumber}
+                  onChange={(event) => setSlotEditForm((prev) => ({ ...prev, contactNumber: event.target.value }))}
+                  fullWidth
+                />
+                <TextField
+                  label="Plate Number"
+                  value={slotEditForm.plateNumber}
+                  onChange={(event) => setSlotEditForm((prev) => ({ ...prev, plateNumber: event.target.value.toUpperCase() }))}
+                  fullWidth
+                />
+                <TextField
+                  type="datetime-local"
+                  label="Start Time"
+                  value={slotEditForm.startTime}
+                  onChange={(event) => setSlotEditForm((prev) => ({ ...prev, startTime: event.target.value }))}
+                  fullWidth
+                />
+                <TextField
+                  select
+                  label="Duration"
+                  value={slotEditForm.durationHours}
+                  onChange={(event) => setSlotEditForm((prev) => ({ ...prev, durationHours: event.target.value }))}
+                  fullWidth
+                >
+                  {durationOptions.map((hours) => (
+                    <MenuItem key={hours} value={String(hours)}>
+                      {hours} {hours === 1 ? 'hour' : 'hours'}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </>
+            ) : (
+              <Alert severity="info">This slot will be released and shown as available.</Alert>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setSlotModalOpen(false)} sx={{ textTransform: 'none' }}>
+            Cancel
+          </Button>
+          <Button onClick={handleSaveSlotStatus} variant="contained" sx={{ textTransform: 'none' }}>
+            Save Changes
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }

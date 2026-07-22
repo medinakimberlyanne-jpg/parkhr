@@ -8,7 +8,6 @@ import CssBaseline from '@mui/material/CssBaseline';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import * as React from 'react';
-import { useRouter } from 'next/navigation';
 import { useAppSelector } from '../../store/store';
 import AppNavbar from '../../components/AppNavbar_2';
 import Header from '../../components/Header';
@@ -32,7 +31,6 @@ const xThemeComponents = {
 
 export default function Dashboard(props: { disableCustomTheme?: boolean }) {
   const [selectedSection, setSelectedSection] = React.useState('Home');
-  const router = useRouter();
   const user = useAppSelector((s) => s.user.user);
 
   const getCookie = (name: string) => {
@@ -45,9 +43,11 @@ export default function Dashboard(props: { disableCustomTheme?: boolean }) {
     // if user is not in redux store and no userId cookie, redirect to login
     const id = getCookie('userId');
     if (!user && !id) {
-      router.replace('/login');
+      if (typeof window !== 'undefined') {
+        window.location.replace('/login');
+      }
     }
-  }, [user, router]);
+  }, [user]);
 
   return (
     <AppTheme {...props} themeComponents={xThemeComponents}>
