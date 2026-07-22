@@ -148,6 +148,11 @@ const formatDateTime = (value: string) =>
     minute: '2-digit',
   }).format(new Date(value));
 
+const normalizeSlotStatus = (status: unknown): SlotStatus => {
+  const value = String(status || '').trim().toLowerCase();
+  return ['available', 'occupied', 'reserved'].includes(value) ? (value as SlotStatus) : 'available';
+};
+
 const readStoredReservations = (): ReservationRecord[] => {
   if (typeof window === 'undefined') {
     return [];
@@ -272,6 +277,7 @@ export default function ReservationPanel({
             body.slots.map((slot: any, index: number) => ({
               ...slot,
               id: slot.id ?? index + 1,
+              status: normalizeSlotStatus(slot.status),
               occupantDetails: slot.occupantDetails ?? null,
             })),
           );
@@ -392,7 +398,7 @@ export default function ReservationPanel({
     const details = getSlotDetails(slot);
     setSlotEditCode(slot.code);
     setSlotEditForm({
-      status: !isAdmin && slot.status === 'available' ? 'reserved' : slot.status,
+      status: !isAdmin && slot.status === 'available' ? 'reserved' : normalizeSlotStatus(slot.status),
       customerName: details?.customerName || '',
       contactNumber: details?.contactNumber || '',
       plateNumber: details?.plateNumber || '',
@@ -1019,13 +1025,11 @@ export default function ReservationPanel({
               onChange={(event) => setSlotEditForm((prev) => ({ ...prev, status: event.target.value as SlotStatus }))}
               fullWidth
             >
-                  {isAdmin ? (
-                    <>
-                      <MenuItem value="available">Available</MenuItem>
-                      <MenuItem value="occupied">Occupied</MenuItem>
-                      <MenuItem value="reserved">Reserved</MenuItem>
-                    </>
-                  ) : (
+                  {isAdmin ? [
+                      <MenuItem key="available" value="available">Available</MenuItem>,
+                      <MenuItem key="occupied" value="occupied">Occupied</MenuItem>,
+                      <MenuItem key="reserved" value="reserved">Reserved</MenuItem>,
+                    ] : (
                     <MenuItem value="reserved">Reserved</MenuItem>
                   )}
             </TextField>
