@@ -49,6 +49,7 @@ export async function PATCH(request: Request, context: { params?: { code?: strin
           customerName: String(body.occupantDetails.customerName || '').trim(),
           contactNumber: String(body.occupantDetails.contactNumber || '').trim(),
           plateNumber: String(body.occupantDetails.plateNumber || '').trim().toUpperCase(),
+          vehicleType: String(body.occupantDetails.vehicleType || 'Sedan').trim(),
           startTime: String(body.occupantDetails.startTime || ''),
           durationHours: Number(body.occupantDetails.durationHours || 1),
         }
@@ -65,13 +66,30 @@ export async function PATCH(request: Request, context: { params?: { code?: strin
       return NextResponse.json({ error: 'Slot not found' }, { status: 404 });
     }
 
-    // Allow admins to update freely. Regular users may only reserve/occupy slots
+    // Allow admins to update freely. Regular users may only reserve/occupy slots or cancel their own reserved slot.
     if (String(user.userType || '').toLowerCase() !== 'admin') {
+      const existingUserId = existing.userId ? String(existing.userId) : null;
+      const isOwnReservedSlot = existing.status === 'reserved' && existingUserId === String(userId);
+
+      if (normalizedStatus === 'available' && isOwnReservedSlot) {
+        const update = {
+          $set: {
+            status: 'available',
+            occupantDetails: null,
+            userId: null,
+            updatedAt: new Date(),
+          },
+        };
+        await collection.updateOne({ code }, update);
+        const updated = await collection.findOne({ code });
+        return NextResponse.json({ slot: updated });
+      }
+
       // Only allow reserving/occupying if currently available
       if (String(existing.status) !== 'available') {
         return NextResponse.json({ error: 'Slot not available' }, { status: 403 });
       }
-      // For regular users, use the requested status (default to reserved)
+
       const update = {
         $set: {
           status: normalizedStatus,

@@ -152,7 +152,7 @@ export default function PaymentPanel() {
               type="date"
               value={fromDate}
               onChange={(event) => setFromDate(event.target.value)}
-              InputLabelProps={{ shrink: true }}
+              InputProps={{ inputProps: { shrink: true } }}
             />
             <TextField
               size="small"
@@ -160,7 +160,7 @@ export default function PaymentPanel() {
               type="date"
               value={toDate}
               onChange={(event) => setToDate(event.target.value)}
-              InputLabelProps={{ shrink: true }}
+              InputProps={{ inputProps: { shrink: true } }}
             />
           </Box>
           <Button variant="outlined" onClick={handleResetFilters} sx={{ textTransform: 'none', fontWeight: 700 }}>

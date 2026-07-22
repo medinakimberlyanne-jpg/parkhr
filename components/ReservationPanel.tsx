@@ -31,6 +31,7 @@ interface Slot {
   pricePerHour: number;
   features: string[];
   occupantDetails?: SlotOccupantDetails | null;
+  userId?: string | null;
 }
 
 interface ReservationRecord {
@@ -58,6 +59,7 @@ interface SlotOccupantDetails {
   customerName: string;
   contactNumber: string;
   plateNumber: string;
+  vehicleType: VehicleType;
   startTime: string;
   durationHours: number;
 }
@@ -200,6 +202,7 @@ const createDefaultOccupiedDetails = (slot: Slot): SlotOccupantDetails => {
     customerName: `Occupant ${slot.code}`,
     contactNumber: `09${String(100000000 + slotNumber).slice(-10)}`,
     plateNumber: `PKR-${String(1000 + slotNumber)}`,
+    vehicleType: 'Sedan',
     startTime: normalizedStartTime,
     durationHours: duration,
   };
@@ -230,6 +233,7 @@ export default function ReservationPanel({
     customerName: '',
     contactNumber: '',
     plateNumber: '',
+    vehicleType: 'Sedan' as VehicleType,
     startTime: '',
     durationHours: '2',
   });
@@ -239,7 +243,11 @@ export default function ReservationPanel({
   const [slotsLoaded, setSlotsLoaded] = React.useState(false);
   const [addSlotLoading, setAddSlotLoading] = React.useState(false);
   const user = useAppSelector((s) => s.user.user);
+  const currentUserId = String(user?._id || user?.id || '');
   const isAdmin = String(user?.userType || '').toLowerCase() === 'admin';
+
+  const isCurrentUsersReservedSlot = (slot: Slot | null) =>
+    !!slot && slot.status === 'reserved' && slot.userId && slot.userId === currentUserId;
 
   React.useEffect(() => {
     setReservations(readStoredReservations());
@@ -279,6 +287,7 @@ export default function ReservationPanel({
               id: slot.id ?? index + 1,
               status: normalizeSlotStatus(slot.status),
               occupantDetails: slot.occupantDetails ?? null,
+              userId: slot.userId ? String(slot.userId) : null,
             })),
           );
         }
@@ -372,6 +381,7 @@ export default function ReservationPanel({
         customerName: reservation.customerName,
         contactNumber: 'N/A',
         plateNumber: reservation.plateNumber,
+        vehicleType: reservation.vehicleType,
         startTime: reservation.startTime,
         durationHours: reservation.durationHours,
       };
@@ -402,16 +412,24 @@ export default function ReservationPanel({
       customerName: details?.customerName || '',
       contactNumber: details?.contactNumber || '',
       plateNumber: details?.plateNumber || '',
+      vehicleType: details?.vehicleType || 'Sedan',
       startTime: details?.startTime || buildDefaultStartTime(),
       durationHours: String(details?.durationHours || 2),
     });
     setSlotModalOpen(true);
 
     if (slot.status !== 'available') {
-      setFeedback({
-        severity: 'info',
-        message: `${slot.code} is currently ${slotPalette[slot.status].label.toLowerCase()}. Please choose an available space.`,
-      });
+      if (isCurrentUsersReservedSlot(slot)) {
+        setFeedback({
+          severity: 'info',
+          message: `You own the reservation for ${slot.code}. Use Cancel Reserved to release it.`,
+        });
+      } else {
+        setFeedback({
+          severity: 'info',
+          message: `${slot.code} is currently ${slotPalette[slot.status].label.toLowerCase()}. Please choose an available space.`,
+        });
+      }
       return;
     }
 
@@ -529,6 +547,7 @@ export default function ReservationPanel({
           customerName: slotEditForm.customerName.trim() || 'Unknown',
           contactNumber: slotEditForm.contactNumber.trim() || 'N/A',
           plateNumber: slotEditForm.plateNumber.trim().toUpperCase() || 'N/A',
+          vehicleType: slotEditForm.vehicleType,
           startTime: slotEditForm.startTime || buildDefaultStartTime(),
           durationHours: Math.max(1, Number(slotEditForm.durationHours) || 1),
         }
@@ -555,9 +574,9 @@ export default function ReservationPanel({
     };
 
     (async () => {
-      const updatedSlot = await saveToServer();
+        const updatedSlot = await saveToServer();
       if (updatedSlot) {
-        // update local dbSlots so UI disables the slot (status -> occupied)
+        // update local dbSlots so UI disables the slot
         setDbSlots((current) => current.map((s) => (s.code === updatedSlot.code ? updatedSlot : s)));
         setFeedback({ severity: 'success', message: `${slotEditCode} updated to ${slotPalette[updatedSlot.status].label}.` });
       } else {
@@ -586,6 +605,36 @@ export default function ReservationPanel({
     setDurationHours(String(activeReservation.durationHours));
     setNotes(activeReservation.notes);
     setFeedback({ severity: 'success', message: `Loaded ${activeReservation.slotCode} into the reservation form.` });
+  };
+
+  const handleCancelReservedSlot = async () => {
+    if (!slotEditCode || !selectedSlot) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/parking-slots/${encodeURIComponent(slotEditCode)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slotStatus: 'available', occupantDetails: null }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || `Cancel failed: ${res.status}`);
+      }
+      const body = await res.json();
+      const updatedSlot = body.slot;
+      if (updatedSlot) {
+        setDbSlots((current) => current.map((s) => (s.code === updatedSlot.code ? updatedSlot : s)));
+        setReservations((current) => current.filter((reservation) => reservation.slotCode !== updatedSlot.code));
+        setFeedback({ severity: 'success', message: `${slotEditCode} reservation canceled.` });
+      }
+    } catch (err) {
+      console.warn('Failed to cancel reserved slot', err);
+      setFeedback({ severity: 'info', message: String(err) });
+    } finally {
+      setSlotModalOpen(false);
+    }
   };
 
   return (
@@ -1055,6 +1104,19 @@ export default function ReservationPanel({
                   fullWidth
                 />
                 <TextField
+                  select
+                  label="Vehicle Type"
+                  value={slotEditForm.vehicleType}
+                  onChange={(event) => setSlotEditForm((prev) => ({ ...prev, vehicleType: event.target.value as VehicleType }))}
+                  fullWidth
+                >
+                  {vehicleTypes.map((type) => (
+                    <MenuItem key={type} value={type}>
+                      {type}
+                    </MenuItem>
+                  ))}
+                </TextField>
+                <TextField
                   type="datetime-local"
                   label="Start Time"
                   value={slotEditForm.startTime}
@@ -1082,11 +1144,17 @@ export default function ReservationPanel({
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setSlotModalOpen(false)} sx={{ textTransform: 'none' }}>
-            Cancel
+            Close
           </Button>
-          <Button onClick={handleSaveSlotStatus} variant="contained" sx={{ textTransform: 'none' }}>
-            Save Changes
-          </Button>
+          {!isAdmin && selectedSlot?.status === 'reserved' && selectedSlot.userId && selectedSlot.userId === currentUserId ? (
+            <Button onClick={handleCancelReservedSlot} variant="contained" color="error" sx={{ textTransform: 'none' }}>
+              Cancel Reserved
+            </Button>
+          ) : (
+            <Button onClick={handleSaveSlotStatus} variant="contained" sx={{ textTransform: 'none' }}>
+              Save Changes
+            </Button>
+          )}
         </DialogActions>
       </Dialog>
     </Stack>
